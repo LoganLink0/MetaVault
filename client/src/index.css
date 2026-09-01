@@ -95,6 +95,12 @@
     @apply border-border;
   }
 
+  /* 移动端点按响应：跳过双击缩放判定窗口，消除点按到跳转的不稳定延迟 */
+  html {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-body);
