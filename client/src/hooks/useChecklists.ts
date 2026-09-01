@@ -9,6 +9,8 @@ import {
   toggleChecklistItem,
   deleteChecklistItem,
   completeChecklist,
+  archiveChecklist,
+  unarchiveChecklist,
 } from "@/lib/api-checklists";
 import type { ChecklistInput, ChecklistItemInput } from "@/types/checklist";
 
@@ -82,6 +84,28 @@ export function useCompleteChecklist() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => completeChecklist(id),
+    onSuccess: (_data, id) => {
+      qc.invalidateQueries({ queryKey: ["checklists"] });
+      qc.invalidateQueries({ queryKey: ["checklists", id] });
+    },
+  });
+}
+
+export function useArchiveChecklist() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => archiveChecklist(id),
+    onSuccess: (_data, id) => {
+      qc.invalidateQueries({ queryKey: ["checklists"] });
+      qc.invalidateQueries({ queryKey: ["checklists", id] });
+    },
+  });
+}
+
+export function useUnarchiveChecklist() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => unarchiveChecklist(id),
     onSuccess: (_data, id) => {
       qc.invalidateQueries({ queryKey: ["checklists"] });
       qc.invalidateQueries({ queryKey: ["checklists", id] });

@@ -1,8 +1,8 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, X, Plus } from "lucide-react";
 import { toast } from "sonner";
-import { useCreateChecklist } from "@/hooks/useChecklists";
+import { useCreateChecklist, useUpdateChecklist, useChecklist } from "@/hooks/useChecklists";
 import { useAssets } from "@/hooks/useAssets";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,8 +17,12 @@ const scenarios: ChecklistScenario[] = ["business_trip", "travel", "daily_check"
 
 function ChecklistForm() {
   const navigate = useNavigate();
+  const { id } = useParams();
+  const isEdit = !!id;
   const create = useCreateChecklist();
+  const update = useUpdateChecklist();
   const { data: assets } = useAssets();
+  const { data: existing, isLoading: isLoadingExisting } = useChecklist(id ?? "");
 
   const [selectedScenario, setSelectedScenario] = useState<ChecklistScenario | null>(null);
   const [title, setTitle] = useState("");
@@ -26,9 +30,24 @@ function ChecklistForm() {
   const [notes, setNotes] = useState("");
   const [items, setItems] = useState<{ content: string; asset_id: string | null }[]>([]);
   const [customItem, setCustomItem] = useState("");
+  const [hydrated, setHydrated] = useState(false);
+
+  // 编辑模式：加载现有数据回填表单（只回填一次，避免覆盖用户输入）
+  useEffect(() => {
+    if (isEdit && existing && !hydrated) {
+      setSelectedScenario(existing.scenario);
+      setTitle(existing.title);
+      setDueDate(existing.due_date ?? "");
+      setNotes(existing.notes ?? "");
+      setItems((existing.items ?? []).map((it) => ({ content: it.content, asset_id: it.asset_id })));
+      setHydrated(true);
+    }
+  }, [isEdit, existing, hydrated]);
 
   function selectScenario(scenario: ChecklistScenario) {
     setSelectedScenario(scenario);
+    // 编辑模式仅切换场景标签，不重新生成清单项
+    if (isEdit) return;
     if (scenario === "custom") {
       setTitle("自定义清单");
       setItems([]);
@@ -59,6 +78,21 @@ function ChecklistForm() {
     if (!selectedScenario) { toast.error("请选择场景"); return; }
     if (!title.trim()) { toast.error("请输入标题"); return; }
 
+    if (isEdit) {
+      update.mutate({
+        id: id!,
+        input: {
+          title: title.trim(),
+          scenario: selectedScenario,
+          due_date: dueDate || null,
+          notes: notes.trim() || null,
+        },
+      }, {
+        onSuccess: () => navigate(`/checklists/${id}`),
+      });
+      return;
+    }
+
     create.mutate({
       title: title.trim(),
       scenario: selectedScenario,
@@ -74,13 +108,16 @@ function ChecklistForm() {
     });
   }
 
+  if (isEdit && isLoadingExisting) return <div className="text-center py-8 text-ink3">加载中...</div>;
+  if (isEdit && !existing) return <div className="text-center py-8 text-ink3">清单不存在</div>;
+
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <h2 className="font-display text-xl font-bold tracking-[2px] uppercase">新建清单</h2>
+        <h2 className="font-display text-xl font-bold tracking-[2px] uppercase">{isEdit ? "编辑清单" : "新建清单"}</h2>
       </div>
 
       {/* 选择场景 */}
@@ -152,35 +189,42 @@ function ChecklistForm() {
                           <span className="text-xs text-ink2">({linkedAsset.name})</span>
                         )}
                       </div>
-                      <button onClick={() => removeItem(i)} className="text-ink3 hover:text-wrn shrink-0">
-                        <X className="h-3.5 w-3.5" />
-                      </button>
+                      {!isEdit && (
+                        <button onClick={() => removeItem(i)} className="text-ink3 hover:text-wrn shrink-0">
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      )}
                     </div>
                   );
                 })}
               </div>
             ) : (
               <p className="text-sm text-ink3 text-center py-4">
-                {selectedScenario === "custom" ? "添加自定义清单项" : "当前资产无匹配项，可添加自定义项"}
+                {isEdit ? "暂无清单项" : selectedScenario === "custom" ? "添加自定义清单项" : "当前资产无匹配项，可添加自定义项"}
               </p>
             )}
-            <div className="flex items-center gap-2">
-              <Input
-                value={customItem}
-                onChange={(e) => setCustomItem(e.target.value)}
-                placeholder="添加自定义清单项"
-                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustomItem(); } }}
-              />
-              <Button type="button" variant="secondary" onClick={addCustomItem} size="sm">
-                <Plus className="h-3.5 w-3.5" />
-                添加
-              </Button>
-            </div>
+            {!isEdit && (
+              <div className="flex items-center gap-2">
+                <Input
+                  value={customItem}
+                  onChange={(e) => setCustomItem(e.target.value)}
+                  placeholder="添加自定义清单项"
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustomItem(); } }}
+                />
+                <Button type="button" variant="secondary" onClick={addCustomItem} size="sm">
+                  <Plus className="h-3.5 w-3.5" />
+                  添加
+                </Button>
+              </div>
+            )}
+            {isEdit && (
+              <p className="text-xs text-ink3">清单项的增删和勾选请在清单详情页操作</p>
+            )}
           </div>
 
           <div className="flex gap-3">
-            <Button type="submit" disabled={create.isPending} data-testid="submit-checklist">
-              {create.isPending ? "创建中..." : "创建清单"}
+            <Button type="submit" disabled={create.isPending || update.isPending} data-testid="submit-checklist">
+              {isEdit ? (update.isPending ? "保存中..." : "保存修改") : create.isPending ? "创建中..." : "创建清单"}
             </Button>
             <Button type="button" variant="outline" onClick={() => navigate(-1)}>取消</Button>
           </div>

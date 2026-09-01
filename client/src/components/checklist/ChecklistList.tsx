@@ -1,6 +1,6 @@
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Plus, Trash2, ChevronRight } from "lucide-react";
-import { useChecklists, useDeleteChecklist } from "@/hooks/useChecklists";
+import { Plus, Trash2, ChevronRight, Archive, ArchiveRestore } from "lucide-react";
+import { useChecklists, useDeleteChecklist, useArchiveChecklist, useUnarchiveChecklist } from "@/hooks/useChecklists";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { scenarioLabels, statusLabels } from "@/types/checklist";
@@ -18,6 +18,8 @@ function ChecklistList() {
     status: searchParams.get("status") || undefined,
   });
   const deleteCl = useDeleteChecklist();
+  const archiveCl = useArchiveChecklist();
+  const unarchiveCl = useUnarchiveChecklist();
 
   const activeScenario = searchParams.get("scenario") as ChecklistScenario | null;
   const activeStatus = searchParams.get("status") as ChecklistStatus | null;
@@ -116,6 +118,25 @@ function ChecklistList() {
                   )}
                 </div>
                 <div className="flex items-center gap-1">
+                  {cl.status !== "archived" ? (
+                    <Archive
+                      className="h-3.5 w-3.5 text-ink3 hover:text-ink cursor-pointer shrink-0"
+                      data-testid="archive-checklist"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        archiveCl.mutate(cl.id);
+                      }}
+                    />
+                  ) : (
+                    <ArchiveRestore
+                      className="h-3.5 w-3.5 text-ink3 hover:text-ink cursor-pointer shrink-0"
+                      data-testid="unarchive-checklist"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        unarchiveCl.mutate(cl.id);
+                      }}
+                    />
+                  )}
                   <Trash2
                     className="h-3.5 w-3.5 text-ink3 hover:text-wrn cursor-pointer shrink-0"
                     data-testid="delete-checklist"

@@ -52,3 +52,11 @@ export function deleteChecklistItem(checklistId: string, itemId: string): Promis
 export function completeChecklist(id: string): Promise<Checklist> {
   return apiFetch<Checklist>(`/checklists/${id}/complete`, { method: "PATCH" });
 }
+
+export function archiveChecklist(id: string): Promise<Checklist> {
+  return apiFetch<Checklist>(`/checklists/${id}/archive`, { method: "PATCH" });
+}
+
+export function unarchiveChecklist(id: string): Promise<Checklist> {
+  return apiFetch<Checklist>(`/checklists/${id}/unarchive`, { method: "PATCH" });
+}

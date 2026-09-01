@@ -264,4 +264,38 @@ router.patch("/:id/complete", async (req: Request, res: Response) => {
   res.json(updated);
 });
 
+// PATCH /api/checklists/:id/archive — 归档清单
+router.patch("/:id/archive", async (req: Request, res: Response) => {
+  const db = await getDb();
+
+  const checklist = db.prepare("SELECT * FROM checklists WHERE id = ?").get(req.params.id) as Record<string, any> | undefined;
+  if (!checklist) {
+    res.status(404).json({ error: "Checklist not found" });
+    return;
+  }
+
+  const now = new Date().toISOString();
+  db.prepare("UPDATE checklists SET status = 'archived', updated_at = ? WHERE id = ?").run(now, req.params.id);
+
+  const updated = db.prepare("SELECT * FROM checklists WHERE id = ?").get(req.params.id) as Record<string, any> | undefined;
+  res.json(updated);
+});
+
+// PATCH /api/checklists/:id/unarchive — 恢复为进行中
+router.patch("/:id/unarchive", async (req: Request, res: Response) => {
+  const db = await getDb();
+
+  const checklist = db.prepare("SELECT * FROM checklists WHERE id = ?").get(req.params.id) as Record<string, any> | undefined;
+  if (!checklist) {
+    res.status(404).json({ error: "Checklist not found" });
+    return;
+  }
+
+  const now = new Date().toISOString();
+  db.prepare("UPDATE checklists SET status = 'active', updated_at = ? WHERE id = ?").run(now, req.params.id);
+
+  const updated = db.prepare("SELECT * FROM checklists WHERE id = ?").get(req.params.id) as Record<string, any> | undefined;
+  res.json(updated);
+});
+
 export default router;

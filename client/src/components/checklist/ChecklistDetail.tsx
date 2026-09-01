@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Trash2, Plus, CheckSquare, Square } from "lucide-react";
+import { ArrowLeft, Trash2, Plus, CheckSquare, Square, Pencil, Archive, ArchiveRestore } from "lucide-react";
 import { toast } from "sonner";
-import { useChecklist, useDeleteChecklist, useToggleChecklistItem, useAddChecklistItem, useDeleteChecklistItem, useCompleteChecklist } from "@/hooks/useChecklists";
+import { useChecklist, useDeleteChecklist, useToggleChecklistItem, useAddChecklistItem, useDeleteChecklistItem, useCompleteChecklist, useArchiveChecklist, useUnarchiveChecklist } from "@/hooks/useChecklists";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
@@ -19,6 +19,8 @@ function ChecklistDetail() {
   const addItem = useAddChecklistItem();
   const deleteItem = useDeleteChecklistItem();
   const completeCl = useCompleteChecklist();
+  const archiveCl = useArchiveChecklist();
+  const unarchiveCl = useUnarchiveChecklist();
   const [customItem, setCustomItem] = useState("");
 
   if (isLoading) return <div className="text-center py-8 text-ink3">加载中...</div>;
@@ -49,6 +51,14 @@ function ChecklistDetail() {
     completeCl.mutate(id!, { onSuccess: () => toast.success("清单已标记完成") });
   }
 
+  function handleArchive() {
+    archiveCl.mutate(id!, { onSuccess: () => toast.success("清单已归档") });
+  }
+
+  function handleUnarchive() {
+    unarchiveCl.mutate(id!, { onSuccess: () => toast.success("清单已恢复为进行中") });
+  }
+
   function handleDelete() {
     deleteCl.mutate(id!, { onSuccess: () => navigate("/checklists") });
   }
@@ -70,6 +80,15 @@ function ChecklistDetail() {
         }>
           {statusLabels[checklist.status]}
         </Badge>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => navigate(`/checklists/${id}/edit`)}
+          data-testid="edit-checklist"
+          aria-label="编辑清单"
+        >
+          <Pencil className="h-4 w-4" />
+        </Button>
       </div>
 
       {checklist.due_date && (
@@ -155,6 +174,18 @@ function ChecklistDetail() {
           <Button variant="outline" onClick={handleComplete}>
             <CheckSquare className="h-4 w-4" />
             标记全部完成
+          </Button>
+        )}
+        {checklist.status !== "archived" && (
+          <Button variant="outline" onClick={handleArchive} data-testid="archive-checklist">
+            <Archive className="h-4 w-4" />
+            归档清单
+          </Button>
+        )}
+        {checklist.status === "archived" && (
+          <Button variant="outline" onClick={handleUnarchive} data-testid="unarchive-checklist">
+            <ArchiveRestore className="h-4 w-4" />
+            恢复为进行中
           </Button>
         )}
         <Button variant="outline" onClick={handleDelete} className="text-wrn hover:bg-wrn/10">

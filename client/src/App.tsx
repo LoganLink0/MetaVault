@@ -37,6 +37,7 @@ function App() {
           <Route path="/checklists" element={<ChecklistList />} />
           <Route path="/checklists/new" element={<ChecklistForm />} />
           <Route path="/checklists/:id" element={<ChecklistDetail />} />
+          <Route path="/checklists/:id/edit" element={<ChecklistForm />} />
         </Route>
       </Routes>
       </ErrorBoundary>

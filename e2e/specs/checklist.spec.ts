@@ -93,4 +93,50 @@ test.describe("清单功能", () => {
     await expect(page.getByText("出差清单")).toBeVisible();
     await expect(page.getByText("旅行清单")).not.toBeVisible();
   });
+
+  test("编辑清单基本信息", async ({ page }) => {
+    const cl = await createChecklist({
+      title: "待编辑清单",
+      scenario: "travel",
+      items: [{ content: "带护照" }],
+    });
+
+    // 详情页进入编辑
+    await page.goto(`/checklists/${cl.id}`);
+    await page.getByTestId("edit-checklist").click();
+    await expect(page.locator("h2")).toContainText("编辑清单");
+    await expect(page.getByText("带护照")).toBeVisible();
+
+    // 修改标题并保存
+    await page.locator("main form").getByLabel("标题").fill("编辑后的清单");
+    await page.getByTestId("submit-checklist").click();
+
+    // 保存后回到详情页，显示新标题
+    await expect(page).toHaveURL(new RegExp(`/checklists/[0-9a-f-]+$`));
+    await expect(page.getByText("编辑后的清单")).toBeVisible();
+    await expect(page.getByText("待编辑清单")).not.toBeVisible();
+  });
+
+  test("归档清单与恢复", async ({ page }) => {
+    const cl = await createChecklist({
+      title: "归档测试清单",
+      scenario: "daily_check",
+      items: [{ content: "检查项" }],
+    });
+
+    // 详情页归档，状态徽章变为已归档（exact 避免匹配到 toast 文案）
+    await page.goto(`/checklists/${cl.id}`);
+    await page.getByTestId("archive-checklist").click();
+    await expect(page.getByText("已归档", { exact: true })).toBeVisible();
+    await expect(page.getByTestId("unarchive-checklist")).toBeVisible();
+
+    // 归档筛选下可见
+    await page.goto("/checklists?status=archived");
+    await expect(page.getByText("归档测试清单")).toBeVisible();
+
+    // 详情页恢复为进行中
+    await page.goto(`/checklists/${cl.id}`);
+    await page.getByTestId("unarchive-checklist").click();
+    await expect(page.getByText("进行中", { exact: true })).toBeVisible();
+  });
 });
