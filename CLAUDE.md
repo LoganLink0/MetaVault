@@ -33,7 +33,7 @@
 /e2e          - Playwright E2E 测试
   fixtures/      测试夹具（DB重置 + 种子数据 + 测试数据常量）
   helpers/       测试辅助工具
-  specs/         测试用例（12 个 spec 文件，40 个测试）
+  specs/         测试用例（12 个 spec 文件，43 个测试）
 /docs         - 产品文档（PRD / 技术设计 / 设计风格探索）
 ```
 
