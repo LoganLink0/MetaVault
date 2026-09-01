@@ -14,6 +14,7 @@
 
 - 资产 CRUD（物理/数字/订阅三类，扩展字段 JSON 存储）
 - 资产批量操作（批量修改状态、批量删除）
+- 场景化检查清单（出差/旅行/日常检查/搬家，模板 + 持有资产自动生成清单项，勾选进度/截止日/整体完成/归档）
 - 优秀供应商管理（CRUD + 收藏 + 关联资产展示）
 - 资产关联（depends_on / contains / bound_to / related_to）
 - 提醒系统（8 种类型，启动时 + 每小时自动扫描）
@@ -61,14 +62,14 @@ pnpm e2e:headed
 ```
 client/           React 前端
   src/
-    components/   UI 组件（asset / supplier / dashboard / import / export / notification / relation / layout）
+    components/   UI 组件（asset / supplier / dashboard / checklist / import / export / notification / relation / layout）
     hooks/        React Query hooks
     lib/          API 封装（api-client + api-*）
     types/        TypeScript 类型
 server/           Node.js 后端
   src/
     db/           数据库初始化（init.sql + init.ts）
-    routes/       REST API 路由（assets / suppliers / relations / notifications / import / dashboard / export）
+    routes/       REST API 路由（assets / suppliers / relations / notifications / checklists / import / dashboard / export）
     services/     提醒扫描 + OCR识别 + Web Push服务
     middleware/    输入校验 + 错误处理
 e2e/              Playwright E2E 测试

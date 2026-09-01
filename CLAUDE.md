@@ -18,21 +18,22 @@
 ```
 /client       - React前端（Vite + Tailwind + shadcn/ui）
   src/
-    components/   UI 组件（asset / supplier / dashboard / import / export / notification / relation / layout）
+    components/   UI 组件（asset / supplier / dashboard / checklist / import / export / notification / relation / layout）
     hooks/        React Query hooks
     lib/          API 封装（api-client + api-*）
     types/        TypeScript 类型
     components/dashboard/  仪表盘子组件（GanttTimeline + MiniCalendar + ReminderPanel + TypeDistribution + MonthlyExpirySummary）
+    components/checklist/  清单组件（ChecklistList + ChecklistDetail + ChecklistForm + templates 场景模板）
 /server       - Node.js后端（Express + better-sqlite3）
   src/
     db/           数据库初始化（init.sql + init.ts）
-    routes/       REST API 路由（assets / suppliers / relations / notifications / import / dashboard / export）
+    routes/       REST API 路由（assets / suppliers / relations / notifications / checklists / import / dashboard / export）
     services/     提醒扫描 + OCR识别 + Web Push服务
     middleware/    输入校验 + 错误处理
 /e2e          - Playwright E2E 测试
   fixtures/      测试夹具（DB重置 + 种子数据 + 测试数据常量）
   helpers/       测试辅助工具
-  specs/         测试用例（12 个 spec 文件，35 个测试）
+  specs/         测试用例（12 个 spec 文件，40 个测试）
 /docs         - 产品文档（PRD / 技术设计 / 设计风格探索）
 ```
 
@@ -63,6 +64,7 @@
 ## 功能清单
 - 资产 CRUD（物理/数字/订阅三类，扩展字段 JSON 存储）
 - 资产批量操作（批量修改状态、批量删除）
+- 场景化检查清单（出差/旅行/日常检查/搬家/自定义，模板+持有资产自动生成清单项，勾选进度/整体完成/归档，条目可关联资产）
 - 优秀供应商管理（CRUD + 收藏 + 关联资产展示）
 - 资产关联（depends_on / contains / bound_to / related_to，详情页可添加/移除）
 - 提醒系统（8 种类型，启动时 + 每小时自动扫描）
@@ -96,4 +98,4 @@
 - 全部使用参数化查询防SQL注入
 - 服务端输入校验（validate.ts 中间件，字段类型/枚举/范围校验）
 - Import 路径遍历防护（filePath 限制在 uploads/ 目录内）
-- 历史问题与教训记录：见 `~/.claude/projects/E--AIPROJECT-CODE-MetaVault/memory/question.md`
+- 历史问题与教训记录：见 `~/.claude/projects/E--AIPROJECT-GLM-MetaVault/memory/question.md`

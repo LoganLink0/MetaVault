@@ -174,6 +174,44 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
 );
 ```
 
+#### checklists（检查清单表）— 已实现
+
+```sql
+CREATE TABLE IF NOT EXISTS checklists (
+  id          TEXT PRIMARY KEY,
+  title       TEXT NOT NULL,
+  scenario    TEXT NOT NULL CHECK(scenario IN ('business_trip','travel','daily_check','moving','custom')),
+  status      TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','completed','archived')),
+  due_date    TEXT,
+  notes       TEXT,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_checklists_scenario ON checklists(scenario);
+CREATE INDEX IF NOT EXISTS idx_checklists_status ON checklists(status);
+```
+
+#### checklist_items（清单项表）— 已实现
+
+```sql
+CREATE TABLE IF NOT EXISTS checklist_items (
+  id            TEXT PRIMARY KEY,
+  checklist_id  TEXT NOT NULL REFERENCES checklists(id) ON DELETE CASCADE,
+  content       TEXT NOT NULL,
+  checked       INTEGER DEFAULT 0,
+  asset_id      TEXT REFERENCES assets(id) ON DELETE SET NULL,
+  sort_order    INTEGER DEFAULT 0,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_checklist_items_checklist ON checklist_items(checklist_id);
+CREATE INDEX IF NOT EXISTS idx_checklist_items_asset ON checklist_items(asset_id);
+```
+
+**清单模块说明：** 按场景（出差/旅行/日常检查/搬家/自定义）创建清单，可基于场景模板 + 用户持有的资产自动生成清单项（asset_id 关联资产，资产删除时置空保留条目）。状态流转：active → completed（整体标记完成时所有条目自动勾选）/ archived（归档，不再出现在默认列表）。
+
 ---
 
 ## 2. 前端架构
@@ -193,13 +231,15 @@ client/src/
 │   ├── api-import.ts           # 导入 API
 │   ├── api-export.ts           # 导出 API
 │   ├── api-dashboard.ts        # 仪表盘 API
+│   ├── api-checklists.ts       # 清单 API
 │   └── utils.ts                # shadcn/ui cn() 工具
 ├── hooks/
 │   ├── useAssets.ts            # 资产 CRUD hooks
 │   ├── useSuppliers.ts         # 供应商 CRUD hooks
 │   ├── useRelations.ts         # 关联 CRUD hooks
 │   ├── useNotifications.ts     # 提醒 hooks
-│   └── useDashboard.ts         # 仪表盘统计 hooks
+│   ├── useDashboard.ts         # 仪表盘统计 hooks
+│   └── useChecklists.ts        # 清单 CRUD hooks
 ├── components/
 │   ├── ui/                     # shadcn/ui 组件（Card/CardColorBar, Badge含类型variant）
 │   ├── layout/
@@ -220,6 +260,11 @@ client/src/
 │   │   ├── GanttTimeline.tsx   # 到期热力条（近60天，SVG制图学风格，条可点击跳转资产详情）
 │   │   ├── MiniCalendar.tsx    # 日历组件（年月跳转+类型色点标记）
 │   │   └── [内联] ReminderPanel / TypeDistribution / MonthlyExpirySummary
+│   ├── checklist/
+│   │   ├── ChecklistList.tsx    # 清单列表（场景/状态筛选标签 + 进度条卡片）
+│   │   ├── ChecklistDetail.tsx  # 清单详情（勾选/进度条/添加项/标记完成/归档）
+│   │   ├── ChecklistForm.tsx    # 清单创建/编辑表单（场景选择→模板生成→可增删项）
+│   │   └── templates.ts         # 4 个场景模板 + generateItemsFromTemplate 按持有资产预填
 │   ├── import/
 │   │   └── ImportWizard.tsx    # 导入向导（拖拽上传→预览→映射→导入）
 │   ├── export/
@@ -230,7 +275,8 @@ client/src/
 │   │   └── RelationManager.tsx  # 关联管理（搜索+添加+移除）
 │   ├── ErrorBoundary.tsx        # 全局错误边界
 ├── types/
-│   └── asset.ts                # 资产类型定义
+│   ├── asset.ts                # 资产类型定义
+│   └── checklist.ts            # 清单类型定义（含场景/状态中文标签映射）
 └── index.css                   # Tailwind v4 @theme inline + 时空融合 v2 色系（暖纸色+墨色+类型三色）
 ```
 
@@ -249,6 +295,10 @@ client/src/
 /import               → ImportPage           数据导入
 /export               → ExportPage           数据导出
 /notifications        → NotificationPage     通知页面
+/checklists           → ChecklistListPage    检查清单列表（?scenario=&status= 筛选）
+/checklists/new       → ChecklistForm        清单创建（选场景后按模板+持有资产生成清单项）
+/checklists/:id       → ChecklistDetailPage  清单详情（勾选/进度/添加项）
+/checklists/:id/edit  → ChecklistForm        清单编辑（基本信息：标题/截止日/备注）
 ```
 
 资产列表 URL 参数：`type`（physical/digital/subscription）、`status`（active/idle/expired/disposed）、`sort`（name/price/created_at/updated_at）、`q`（搜索）
@@ -328,6 +378,13 @@ client/src/
 | `/api/dashboard/subscriptions` | GET | 订阅费用 |
 | `/api/dashboard/health` | GET | 健康度 |
 | `/api/dashboard/trends` | GET | 订阅月费用趋势 |
+| `/api/checklists` | GET/POST | 清单列表（scenario/status/search 筛选，含完成统计）/创建（含批量清单项） |
+| `/api/checklists/:id` | GET/PUT/DELETE | 详情（清单项带出关联资产名/类型）/更新基本信息/删除 |
+| `/api/checklists/:id/items` | POST | 添加清单项 |
+| `/api/checklists/:id/items/:itemId/toggle` | PATCH | 切换清单项勾选 |
+| `/api/checklists/:id/items/:itemId` | DELETE | 删除清单项 |
+| `/api/checklists/:id/complete` | PATCH | 整体标记完成（所有条目自动勾选） |
+| `/api/checklists/:id/archive` | PATCH | 归档清单（status → archived） |
 | `/api/assets/:id/usage` | PATCH | 标记数字资产已使用 |
 | `/api/assets/:id/screenshot` | POST | 上传订阅截图 |
 | `/api/assets/ocr` | POST | OCR 识别订阅截图 |
@@ -414,16 +471,16 @@ e2e/
 └── specs/
     ├── dashboard.spec.ts      # 仪表盘（空态 / 有数据 / 图表渲染）
     ├── asset-crud.spec.ts     # 资产查看 / 删除 / 表单创建物理/数字 / 编辑（5 个测试）
-    ├── asset-list.spec.ts     # 资产列表筛选 / 搜索 / 排序 / 批量操作（7 个测试）
+    ├── asset-list.spec.ts     # 资产列表筛选 / 搜索 / 排序 / 批量操作（9 个测试）
     ├── supplier-crud.spec.ts  # 供应商查看 / 删除 / 创建 / 编辑 / 收藏切换（5 个测试）
+    ├── checklist.spec.ts      # 清单场景按钮 / 详情进度 / 列表进度 / 勾选 / 删除 / 场景筛选（6 个测试）
     ├── cross-nav.spec.ts      # 跨页面导航（资产→供应商）
     ├── import-export.spec.ts  # 数据导出（资产/供应商 Excel）
     ├── import.spec.ts         # CSV 导入流程 / 非 CSV 文件拒绝
     ├── notifications.spec.ts  # 通知查看 / 忽略 / 批量已读 / 批量忽略（4 个测试）
     ├── relation.spec.ts       # 关联添加 / 删除 / 影响提示（3 个测试）
     ├── ocr.spec.ts            # 订阅截图上传
-    ├── mobile.spec.ts         # 移动端底部导航
-    └── debug-dashboard.spec.ts # 调试用仪表盘截图
+    └── mobile.spec.ts         # 移动端底部导航
 ```
 
 ### 6.3 测试隔离
