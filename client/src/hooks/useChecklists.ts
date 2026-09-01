@@ -6,6 +6,8 @@ import {
   updateChecklist,
   deleteChecklist,
   addChecklistItem,
+  updateChecklistItem,
+  moveChecklistItem,
   toggleChecklistItem,
   deleteChecklistItem,
   completeChecklist,
@@ -60,6 +62,24 @@ export function useAddChecklistItem() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ checklistId, input }: { checklistId: string; input: ChecklistItemInput }) => addChecklistItem(checklistId, input),
+    onSuccess: (_data, vars) => qc.invalidateQueries({ queryKey: ["checklists", vars.checklistId] }),
+  });
+}
+
+export function useUpdateChecklistItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ checklistId, itemId, content }: { checklistId: string; itemId: string; content: string }) =>
+      updateChecklistItem(checklistId, itemId, { content }),
+    onSuccess: (_data, vars) => qc.invalidateQueries({ queryKey: ["checklists", vars.checklistId] }),
+  });
+}
+
+export function useMoveChecklistItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ checklistId, itemId, direction }: { checklistId: string; itemId: string; direction: "up" | "down" }) =>
+      moveChecklistItem(checklistId, itemId, direction),
     onSuccess: (_data, vars) => qc.invalidateQueries({ queryKey: ["checklists", vars.checklistId] }),
   });
 }

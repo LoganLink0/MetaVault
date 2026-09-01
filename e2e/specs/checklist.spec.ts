@@ -139,4 +139,40 @@ test.describe("清单功能", () => {
     await page.getByTestId("unarchive-checklist").click();
     await expect(page.getByText("进行中", { exact: true })).toBeVisible();
   });
+
+  test("重命名清单项", async ({ page }) => {
+    const cl = await createChecklist({
+      title: "重命名测试",
+      scenario: "travel",
+      items: [{ content: "带护照" }],
+    });
+
+    await page.goto(`/checklists/${cl.id}`);
+    await page.getByTestId("checklist-item").click();
+    await page.getByTestId("edit-item-input").fill("带护照和签证");
+    await page.keyboard.press("Enter");
+
+    // exact 避免“带护照”匹配到“带护照和签证”
+    await expect(page.getByText("带护照和签证")).toBeVisible();
+    await expect(page.getByText("带护照", { exact: true })).not.toBeVisible();
+  });
+
+  test("上下移动清单项排序", async ({ page }) => {
+    const cl = await createChecklist({
+      title: "排序测试",
+      scenario: "daily_check",
+      items: [{ content: "项目A" }, { content: "项目B" }, { content: "项目C" }],
+    });
+
+    await page.goto(`/checklists/${cl.id}`);
+    await expect(page.getByTestId("checklist-item").first()).toContainText("项目A");
+
+    // 第一项下移：A B C → B A C
+    await page.getByTestId("move-item-down").first().click();
+    await expect(page.getByTestId("checklist-item").first()).toContainText("项目B");
+
+    // 最后一项上移：B A C → B C A
+    await page.getByTestId("move-item-up").last().click();
+    await expect(page.getByTestId("checklist-item").last()).toContainText("项目A");
+  });
 });

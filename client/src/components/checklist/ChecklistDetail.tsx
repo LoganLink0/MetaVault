@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Trash2, Plus, CheckSquare, Square, Pencil, Archive, ArchiveRestore } from "lucide-react";
+import { ArrowLeft, Trash2, Plus, CheckSquare, Square, Pencil, Archive, ArchiveRestore, ChevronUp, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
-import { useChecklist, useDeleteChecklist, useToggleChecklistItem, useAddChecklistItem, useDeleteChecklistItem, useCompleteChecklist, useArchiveChecklist, useUnarchiveChecklist } from "@/hooks/useChecklists";
+import { useChecklist, useDeleteChecklist, useToggleChecklistItem, useAddChecklistItem, useDeleteChecklistItem, useCompleteChecklist, useArchiveChecklist, useUnarchiveChecklist, useUpdateChecklistItem, useMoveChecklistItem } from "@/hooks/useChecklists";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
@@ -21,7 +21,11 @@ function ChecklistDetail() {
   const completeCl = useCompleteChecklist();
   const archiveCl = useArchiveChecklist();
   const unarchiveCl = useUnarchiveChecklist();
+  const updateItem = useUpdateChecklistItem();
+  const moveItem = useMoveChecklistItem();
   const [customItem, setCustomItem] = useState("");
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
 
   if (isLoading) return <div className="text-center py-8 text-ink3">加载中...</div>;
   if (!checklist) return <div className="text-center py-8 text-ink3">清单不存在</div>;
@@ -45,6 +49,25 @@ function ChecklistDetail() {
 
   function handleDeleteItem(itemId: string) {
     deleteItem.mutate({ checklistId: id!, itemId });
+  }
+
+  function startEditItem(itemId: string, content: string) {
+    setEditingItemId(itemId);
+    setEditValue(content);
+  }
+
+  function saveEditItem() {
+    if (!editingItemId) return;
+    const trimmed = editValue.trim();
+    const original = items.find((i) => i.id === editingItemId)?.content;
+    if (trimmed && trimmed !== original) {
+      updateItem.mutate({ checklistId: id!, itemId: editingItemId, content: trimmed });
+    }
+    setEditingItemId(null);
+  }
+
+  function handleMoveItem(itemId: string, direction: "up" | "down") {
+    moveItem.mutate({ checklistId: id!, itemId, direction });
   }
 
   function handleComplete() {
@@ -134,16 +157,56 @@ function ChecklistDetail() {
                 <Square className="h-4 w-4 text-ink3" />
               )}
             </button>
-            <div className="flex-1 min-w-0">
-              <span className={`text-sm ${item.checked ? "line-through text-ink3" : "text-ink"}`}>
-                {item.content}
-              </span>
-              {item.asset_name && (
-                <span className={`text-xs ml-1.5 ${item.checked ? "text-ink4" : "text-ink2"}`}>
-                  ({item.asset_name})
+            {editingItemId === item.id ? (
+              <input
+                autoFocus
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                onBlur={saveEditItem}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") saveEditItem();
+                  else if (e.key === "Escape") setEditingItemId(null);
+                }}
+                className="flex-1 min-w-0 bg-transparent text-sm text-ink border-b border-phy focus:outline-none"
+                data-testid="edit-item-input"
+              />
+            ) : (
+              <div
+                className="flex-1 min-w-0"
+                data-testid="checklist-item"
+                onClick={() => checklist.status !== "archived" && startEditItem(item.id, item.content)}
+                title={checklist.status !== "archived" ? "点击重命名" : undefined}
+              >
+                <span className={`text-sm ${item.checked ? "line-through text-ink3" : "text-ink"} ${checklist.status !== "archived" ? "cursor-text hover:underline decoration-dotted underline-offset-2" : ""}`}>
+                  {item.content}
                 </span>
-              )}
-            </div>
+                {item.asset_name && (
+                  <span className={`text-xs ml-1.5 ${item.checked ? "text-ink4" : "text-ink2"}`}>
+                    ({item.asset_name})
+                  </span>
+                )}
+              </div>
+            )}
+            {checklist.status !== "archived" && editingItemId !== item.id && (
+              <div className="flex items-center gap-0.5 shrink-0">
+                <button
+                  onClick={() => handleMoveItem(item.id, "up")}
+                  className="text-ink3 hover:text-ink"
+                  data-testid="move-item-up"
+                  aria-label="上移"
+                >
+                  <ChevronUp className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  onClick={() => handleMoveItem(item.id, "down")}
+                  className="text-ink3 hover:text-ink"
+                  data-testid="move-item-down"
+                  aria-label="下移"
+                >
+                  <ChevronDown className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
             <button onClick={() => handleDeleteItem(item.id)} className="text-ink3 hover:text-wrn shrink-0">
               <Trash2 className="h-3.5 w-3.5" />
             </button>

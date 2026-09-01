@@ -202,6 +202,77 @@ router.post("/:id/items", async (req: Request, res: Response) => {
   res.status(201).json({ ...item, checked: false });
 });
 
+// PUT /api/checklists/:id/items/:itemId — 重命名清单项
+router.put("/:id/items/:itemId", async (req: Request, res: Response) => {
+  const validationError = validateChecklistItemInput(req.body);
+  if (validationError) {
+    res.status(400).json({ error: validationError });
+    return;
+  }
+
+  const db = await getDb();
+  const { id, itemId } = req.params;
+
+  const result = db.prepare(
+    "UPDATE checklist_items SET content = ?, updated_at = ? WHERE id = ? AND checklist_id = ?"
+  ).run(req.body.content.trim(), new Date().toISOString(), itemId, id);
+  if (result.changes === 0) {
+    res.status(404).json({ error: "Checklist item not found" });
+    return;
+  }
+
+  const now = new Date().toISOString();
+  db.prepare("UPDATE checklists SET updated_at = ? WHERE id = ?").run(now, id);
+
+  const item = db.prepare(`
+    SELECT ci.*, a.name as asset_name, a.type as asset_type
+    FROM checklist_items ci
+    LEFT JOIN assets a ON ci.asset_id = a.id
+    WHERE ci.id = ?
+  `).get(itemId) as Record<string, any> | undefined;
+
+  res.json({ ...item, checked: !!(item as any)?.checked });
+});
+
+// PATCH /api/checklists/:id/items/:itemId/move — 上移/下移清单项（交换 sort_order）
+router.patch("/:id/items/:itemId/move", async (req: Request, res: Response) => {
+  const db = await getDb();
+  const { id, itemId } = req.params;
+  const direction = req.body?.direction;
+
+  if (direction !== "up" && direction !== "down") {
+    res.status(400).json({ error: "direction 必须为 up/down" });
+    return;
+  }
+
+  const items = db.prepare(
+    "SELECT id, sort_order FROM checklist_items WHERE checklist_id = ? ORDER BY sort_order, created_at"
+  ).all(id) as { id: string; sort_order: number }[];
+
+  const index = items.findIndex((it) => it.id === itemId);
+  if (index === -1) {
+    res.status(404).json({ error: "Checklist item not found" });
+    return;
+  }
+
+  const neighborIndex = direction === "up" ? index - 1 : index + 1;
+  if (neighborIndex < 0 || neighborIndex >= items.length) {
+    res.json({ success: true }); // 已在边界，无需移动
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const swap = db.transaction(() => {
+    const update = db.prepare("UPDATE checklist_items SET sort_order = ?, updated_at = ? WHERE id = ?");
+    update.run(items[neighborIndex].sort_order, now, items[index].id);
+    update.run(items[index].sort_order, now, items[neighborIndex].id);
+    db.prepare("UPDATE checklists SET updated_at = ? WHERE id = ?").run(now, id);
+  });
+  swap();
+
+  res.json({ success: true });
+});
+
 // PATCH /api/checklists/:id/items/:itemId/toggle — 切换勾选
 router.patch("/:id/items/:itemId/toggle", async (req: Request, res: Response) => {
   const db = await getDb();

@@ -39,6 +39,20 @@ export function addChecklistItem(checklistId: string, input: ChecklistItemInput)
   });
 }
 
+export function updateChecklistItem(checklistId: string, itemId: string, input: { content: string }): Promise<ChecklistItem> {
+  return apiFetch<ChecklistItem>(`/checklists/${checklistId}/items/${itemId}`, {
+    method: "PUT",
+    body: JSON.stringify(input),
+  });
+}
+
+export function moveChecklistItem(checklistId: string, itemId: string, direction: "up" | "down"): Promise<void> {
+  return apiFetch(`/checklists/${checklistId}/items/${itemId}/move`, {
+    method: "PATCH",
+    body: JSON.stringify({ direction }),
+  });
+}
+
 export function toggleChecklistItem(checklistId: string, itemId: string): Promise<ChecklistItem> {
   return apiFetch<ChecklistItem>(`/checklists/${checklistId}/items/${itemId}/toggle`, {
     method: "PATCH",
