@@ -56,6 +56,7 @@ export interface OcrResult {
   currency?: string;
   billing_cycle?: string;
   next_billing_date?: string;
+  confidence?: "high" | "medium" | "low";
   raw_text?: string;
 }
 
@@ -66,6 +67,10 @@ export async function ocrRecognize(file: File): Promise<OcrResult> {
     method: "POST",
     body: formData,
   });
-  if (!res.ok) throw new Error("OCR 识别失败");
+  if (!res.ok) {
+    // 透传后端提示（如未配置 VISION_API_KEY 的 503 信息）
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.error || "OCR 识别失败");
+  }
   return res.json();
 }

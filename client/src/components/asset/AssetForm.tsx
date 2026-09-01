@@ -97,6 +97,7 @@ function ScreenshotOcr({ onOcrResult }: { onOcrResult: (r: OcrResult) => void })
           {ocrResult.amount != null && <p>金额：¥{ocrResult.amount}</p>}
           {ocrResult.billing_cycle && <p>计费周期：{ocrResult.billing_cycle === "monthly" ? "月付" : ocrResult.billing_cycle === "yearly" ? "年付" : ocrResult.billing_cycle}</p>}
           {ocrResult.next_billing_date && <p>下次扣费：{ocrResult.next_billing_date}</p>}
+          {ocrResult.confidence === "low" && <p className="text-xs text-wrn">识别把握较低，请核对后再保存</p>}
           <p className="text-muted-foreground">已自动填入表单，可手动修改</p>
         </div>
       )}

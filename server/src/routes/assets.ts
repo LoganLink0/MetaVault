@@ -3,7 +3,7 @@ import type { Router as RouterType } from "express";
 import multer from "multer";
 import path from "path";
 import { getDb } from "../db/init.js";
-import { recognizeSubscription } from "../services/ocr-service.js";
+import { isVisionConfigured, recognizeSubscription } from "../services/ocr-service.js";
 import { validateAssetInput } from "../middleware/validate.js";
 
 const router: RouterType = Router();
@@ -226,11 +226,16 @@ router.post("/:id/screenshot", screenshotUpload.single("screenshot"), async (req
   res.json({ screenshot_url: ext.screenshot_url });
 });
 
-// POST /api/assets/ocr — OCR 识别订阅截图
+// POST /api/assets/ocr — OCR 识别订阅截图（视觉大模型直出结构化字段）
 router.post("/ocr", screenshotUpload.single("screenshot"), async (req: Request, res: Response) => {
   const file = req.file;
   if (!file) {
     res.status(400).json({ error: "请上传截图文件" });
+    return;
+  }
+
+  if (!isVisionConfigured()) {
+    res.status(503).json({ error: "未配置视觉识别 API（server/.env 中设置 VISION_API_KEY），请手动填写订阅信息" });
     return;
   }
 

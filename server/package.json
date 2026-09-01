@@ -15,8 +15,7 @@
     "uuid": "^10",
     "xlsx": "^0.18",
     "web-push": "^3.6.7",
-    "dotenv": "^16",
-    "tesseract.js": "^5"
+    "dotenv": "^16"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7",
