@@ -129,13 +129,14 @@ CREATE INDEX idx_relations_source ON asset_relations(source_id);
 CREATE INDEX idx_relations_target ON asset_relations(target_id);
 ```
 
-#### notifications（提醒表）
+#### notifications（提醒表）— v2
 
 ```sql
-CREATE TABLE notifications (
+CREATE TABLE IF NOT EXISTS notifications (
   id          TEXT PRIMARY KEY,
-  asset_id    TEXT NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
-  type        TEXT NOT NULL CHECK(type IN ('warranty_expiry','subscription_renewal','digital_expiry','trial_expiry','usage_stagnation','deprecation','cancellation_suggestion','replacement_suggestion')),
+  asset_id    TEXT REFERENCES assets(id) ON DELETE CASCADE,      -- 可空：清单提醒无关联资产
+  checklist_id TEXT REFERENCES checklists(id) ON DELETE CASCADE, -- 可空：资产提醒无关联清单
+  type        TEXT NOT NULL CHECK(type IN ('warranty_expiry','subscription_renewal','digital_expiry','trial_expiry','usage_stagnation','deprecation','cancellation_suggestion','replacement_suggestion','checklist_due')),
   message     TEXT NOT NULL,
   trigger_date TEXT NOT NULL,              -- 提醒触发日期
   is_read     INTEGER DEFAULT 0,
@@ -143,10 +144,13 @@ CREATE TABLE notifications (
   created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE INDEX idx_notifications_asset ON notifications(asset_id);
-CREATE INDEX idx_notifications_trigger ON notifications(trigger_date);
-CREATE INDEX idx_notifications_unread ON notifications(is_read, is_dismissed);
+CREATE INDEX IF NOT EXISTS idx_notifications_asset ON notifications(asset_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_checklist ON notifications(checklist_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_trigger ON notifications(trigger_date);
+CREATE INDEX IF NOT EXISTS idx_notifications_unread ON notifications(is_read, is_dismissed);
 ```
+
+**v2 自动迁移：** 旧库的 notifications 表为 8 种类型 + asset_id NOT NULL，`CREATE TABLE IF NOT EXISTS` 不会更新已存在的表。`init.ts` 在加载 init.sql 后检查 `sqlite_master` 中的建表语句，未包含 `checklist_due` 时执行表重建迁移（关闭外键 → 建 notifications_new → 复制数据 → 换名 → 重建索引 → 开启外键），保留全部历史提醒数据。
 
 #### screenshots（截图表）— 已实现
 
@@ -381,6 +385,8 @@ client/src/
 | `/api/checklists` | GET/POST | 清单列表（scenario/status/search 筛选，含完成统计）/创建（含批量清单项） |
 | `/api/checklists/:id` | GET/PUT/DELETE | 详情（清单项带出关联资产名/类型）/更新基本信息/删除 |
 | `/api/checklists/:id/items` | POST | 添加清单项 |
+| `/api/checklists/:id/items/:itemId` | PUT | 重命名清单项（content） |
+| `/api/checklists/:id/items/:itemId/move` | PATCH | 上移/下移清单项（direction: up/down，交换 sort_order） |
 | `/api/checklists/:id/items/:itemId/toggle` | PATCH | 切换清单项勾选 |
 | `/api/checklists/:id/items/:itemId` | DELETE | 删除清单项 |
 | `/api/checklists/:id/complete` | PATCH | 整体标记完成（所有条目自动勾选） |
@@ -420,6 +426,7 @@ client/src/
 | deprecation | physical.ext → current_value <= purchase_price * 0.1 |
 | cancellation_suggestion | subscription.ext → usage_frequency="rarely" + next_billing_date - 7天 <= 今天 |
 | replacement_suggestion | physical.ext → current_value <= purchase_price * 0.1 + 有收藏的 physical/mixed 供应商 |
+| checklist_due | checklists → status='active' 且 due_date - 3天 <= 今天 |
 
 ### 4.2 去重
 
