@@ -15,6 +15,7 @@ const typeLabels: Record<string, string> = {
   deprecation: "严重折旧",
   cancellation_suggestion: "取消建议",
   replacement_suggestion: "替换建议",
+  checklist_due: "清单到期",
 };
 
 function NotificationPage() {
@@ -89,12 +90,20 @@ function NotificationPage() {
                     </Badge>
                     <p className="text-sm font-medium">{n.message}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      {n.asset_name && (
+                      {n.checklist_id && n.checklist_title ? (
+                        <span
+                          className="cursor-pointer hover:underline text-phy"
+                          data-testid="notification-checklist-link"
+                          onClick={() => navigate(`/checklists/${n.checklist_id}`)}
+                        >
+                          {n.checklist_title}
+                        </span>
+                      ) : n.asset_name ? (
                         <span className="cursor-pointer hover:underline text-phy" onClick={() => navigate(`/assets/${n.asset_id}`)}>
                           {n.asset_name}
                         </span>
-                      )}
-                      {n.asset_name && n.trigger_date ? " · " : ""}
+                      ) : null}
+                      {(n.checklist_title || n.asset_name) && n.trigger_date ? " · " : ""}
                       {n.trigger_date}
                     </p>
                   </div>

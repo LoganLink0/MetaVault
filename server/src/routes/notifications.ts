@@ -10,7 +10,13 @@ router.get("/", async (req: Request, res: Response) => {
   const db = await getDb();
   const unreadOnly = req.query.unread_only === "true";
 
-  let sql = "SELECT n.*, a.name as asset_name FROM notifications n JOIN assets a ON n.asset_id = a.id WHERE n.is_dismissed = 0";
+  // 清单提醒无关联资产，需 LEFT JOIN；带出清单标题供前端跳转
+  let sql = `
+    SELECT n.*, a.name as asset_name, c.title as checklist_title
+    FROM notifications n
+    LEFT JOIN assets a ON n.asset_id = a.id
+    LEFT JOIN checklists c ON n.checklist_id = c.id
+    WHERE n.is_dismissed = 0`;
   const params: unknown[] = [];
 
   if (unreadOnly) {

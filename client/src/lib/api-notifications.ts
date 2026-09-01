@@ -2,9 +2,11 @@ import { apiFetch } from "./api-client";
 
 export interface Notification {
   id: string;
-  asset_id: string;
-  asset_name: string;
-  type: "warranty_expiry" | "subscription_renewal" | "digital_expiry" | "trial_expiry" | "usage_stagnation" | "deprecation" | "cancellation_suggestion" | "replacement_suggestion";
+  asset_id: string | null;
+  asset_name: string | null;
+  checklist_id: string | null;
+  checklist_title: string | null;
+  type: "warranty_expiry" | "subscription_renewal" | "digital_expiry" | "trial_expiry" | "usage_stagnation" | "deprecation" | "cancellation_suggestion" | "replacement_suggestion" | "checklist_due";
   message: string;
   trigger_date: string;
   is_read: boolean;

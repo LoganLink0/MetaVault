@@ -15,9 +15,14 @@ export async function scanNotifications(): Promise<number> {
 
   let count = 0;
   const insert = db.prepare(
-    `INSERT OR IGNORE INTO notifications (id, asset_id, type, message, trigger_date, created_at)
-     VALUES (?, ?, ?, ?, ?, ?)`
+    `INSERT OR IGNORE INTO notifications (id, asset_id, checklist_id, type, message, trigger_date, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
   );
+
+  // 进行中的清单（用于清单到期提醒）
+  const dueChecklists = db.prepare(
+    "SELECT id, title, due_date FROM checklists WHERE status = 'active' AND due_date IS NOT NULL"
+  ).all() as { id: string; title: string; due_date: string }[];
 
   const transaction = db.transaction(() => {
     for (const asset of assets) {
@@ -93,9 +98,33 @@ export async function scanNotifications(): Promise<number> {
         ).get(asset.id, check.type, check.triggerDate);
 
         if (!exists) {
-          insert.run(crypto.randomUUID(), asset.id, check.type, check.message, check.triggerDate, new Date().toISOString());
+          insert.run(crypto.randomUUID(), asset.id, null, check.type, check.message, check.triggerDate, new Date().toISOString());
           count++;
         }
+      }
+    }
+
+    // 清单到期提醒：进行中清单的 due_date 提前 3 天告警
+    for (const cl of dueChecklists) {
+      const due = new Date(cl.due_date);
+      const warn = new Date(due.getTime() - 3 * 24 * 60 * 60 * 1000);
+      if (warn > now) continue;
+
+      const daysLeft = Math.ceil((due.getTime() - now.getTime()) / 86400000);
+      const message = daysLeft > 0
+        ? `清单「${cl.title}」还有 ${daysLeft} 天到期`
+        : daysLeft === 0
+          ? `清单「${cl.title}」今天到期`
+          : `清单「${cl.title}」已过期 ${-daysLeft} 天`;
+
+      // 去重：同清单+同类型+同触发日不重复
+      const exists = db.prepare(
+        "SELECT id FROM notifications WHERE checklist_id = ? AND type = ? AND trigger_date = ? AND is_dismissed = 0"
+      ).get(cl.id, "checklist_due", cl.due_date);
+
+      if (!exists) {
+        insert.run(crypto.randomUUID(), null, cl.id, "checklist_due", message, cl.due_date, new Date().toISOString());
+        count++;
       }
     }
   });

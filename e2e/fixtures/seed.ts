@@ -54,6 +54,7 @@ export async function createRelation(
 export async function createChecklist(data: {
   title: string;
   scenario: string;
+  due_date?: string;
   items?: { content: string; asset_id?: string }[];
 }) {
   const res = await fetch(`${BASE}/checklists`, {
