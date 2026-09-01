@@ -397,6 +397,8 @@ client/src/
 
 **安全：** 全部使用参数化查询防 SQL 注入。POST/PUT 端点通过 `middleware/validate.ts` 校验必填字段、枚举值、UUID 格式等，非法输入返回 400。文件路径用 `path.resolve + startsWith` 防路径穿越。
 
+**OCR：** 订阅截图识别走视觉大模型（OpenAI 兼容接口，默认智谱 `glm-5.3-flash`，`VISION_MODEL` 可切换），一次调用直出结构化 JSON（服务名/金额/币种/计费周期/下次扣费日 + 置信度），服务端做字段白名单校验与日期归一化，解析失败保留原文供人工核对。未配置 `VISION_API_KEY` 时接口返回 503，前端提示手动填写。
+
 ### 3.3 数据流
 
 ```

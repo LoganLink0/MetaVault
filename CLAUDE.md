@@ -60,6 +60,9 @@
 - `PORT` — 服务端口（默认 3001）
 - `DB_PATH` — SQLite 数据库路径（默认 ./data/metavault.db，E2E 测试用独立路径）
 - `NODE_ENV` — 设为 `test` 时启用 `/api/test/reset` 端点
+- `VISION_API_KEY` — 视觉识别 API 密钥（订阅截图 OCR，OpenAI 兼容接口，默认智谱；未配置时 OCR 接口 503）
+- `VISION_MODEL` — 视觉模型名（默认 glm-5.3-flash，可换 glm-4.6v-flashx 等）
+- `VISION_API_BASE` — 可选，切换视觉 API 服务地址
 
 ## 功能清单
 - 资产 CRUD（物理/数字/订阅三类，扩展字段 JSON 存储）
@@ -74,7 +77,7 @@
 - 数据导出（Excel 格式导出资产和供应商数据）
 - 全局搜索（Header 搜索栏驱动资产列表筛选）
 - 通知页面（未读/全部筛选，批量已读/忽略，资产名可点击跳转详情）
-- 订阅截图上传 + OCR 识别（tesseract.js）
+- 订阅截图上传 + OCR 识别（视觉大模型 GLM 直出 JSON，VISION_API_KEY 未配置时返回 503 提示手动填写）
 - 资产列表排序（名称/价格/创建时间/更新时间）+ URL 筛选参数驱动（?type=&status=&sort=&q=）
 - 移动端适配（<768px 底部 Tab，>=768px 侧边栏）
 - 前端错误边界（ErrorBoundary 包裹路由，页面崩溃不卸载整个应用）

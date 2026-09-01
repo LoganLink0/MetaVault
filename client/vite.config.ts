@@ -12,6 +12,7 @@ export default defineConfig({
   },
   server: {
     port: 5174,
+    host: true, // 监听 0.0.0.0，手机/局域网设备可通过本机 IP 访问
     proxy: {
       "/api": {
         target: "http://localhost:3001",
