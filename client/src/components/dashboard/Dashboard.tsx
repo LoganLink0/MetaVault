@@ -1,12 +1,16 @@
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, AlertTriangle, RefreshCw, TrendingDown } from "lucide-react";
+import { Bell, AlertTriangle, RefreshCw, TrendingDown, ClipboardCheck } from "lucide-react";
 import {
   useDashboardOverview,
   useHealthOverview,
   useSubscriptionSummary,
 } from "@/hooks/useDashboard";
 import { useAssets } from "@/hooks/useAssets";
+import { useChecklists } from "@/hooks/useChecklists";
+import { Badge } from "@/components/ui/badge";
+import { scenarioLabels } from "@/types/checklist";
+import { scenarioColor } from "@/components/checklist/templates";
 import GanttTimeline from "./GanttTimeline";
 import MiniCalendar from "./MiniCalendar";
 
@@ -245,6 +249,59 @@ function MonthlyExpirySummary({ events }: { events: { date: string; type: string
   );
 }
 
+function ActiveChecklists() {
+  const navigate = useNavigate();
+  const { data: checklists } = useChecklists({ status: "active" });
+
+  const active = (checklists ?? []).slice(0, 3);
+  if (active.length === 0) return null;
+
+  return (
+    <div className="bg-pg border-[1.5px] border-ink3 rounded-lg px-4 py-3 space-y-2.5">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5 text-xs text-ink2">
+          <ClipboardCheck className="h-3 w-3 text-phy" />
+          <span>进行中的清单</span>
+        </div>
+        <button
+          onClick={() => navigate("/checklists")}
+          className="text-[11px] text-ink2 hover:text-ink underline underline-offset-2"
+        >
+          查看全部
+        </button>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+        {active.map((cl) => {
+          const total = cl.total_items ?? 0;
+          const done = cl.completed_items ?? 0;
+          const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+          return (
+            <button
+              key={cl.id}
+              onClick={() => navigate(`/checklists/${cl.id}`)}
+              data-testid="dashboard-checklist"
+              className="flex flex-col gap-1.5 px-3 py-2 rounded-md border border-ink3 bg-pg hover:bg-[rgba(44,36,24,.04)] transition-colors text-left"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-xs font-medium text-ink truncate">{cl.title}</span>
+                <Badge variant="outline" className={`shrink-0 ${scenarioColor[cl.scenario]}`}>
+                  {scenarioLabels[cl.scenario]}
+                </Badge>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 h-1.5 rounded-full bg-ink4 overflow-hidden">
+                  <div className="h-full rounded-full bg-phy transition-all" style={{ width: `${pct}%` }} />
+                </div>
+                <span className="text-[10px] font-mono text-ink2 shrink-0">{done}/{total}</span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function Dashboard() {
   const navigate = useNavigate();
   const { data: overview } = useDashboardOverview();
@@ -291,6 +348,9 @@ function Dashboard() {
 
       {/* Type distribution bar */}
       <TypeDistribution />
+
+      {/* Active checklists (hidden when none) */}
+      <ActiveChecklists />
 
       {/* Calendar + Reminders | Gantt timeline */}
       <div className="grid grid-cols-1 md:grid-cols-[320px_1fr] gap-5 items-stretch">

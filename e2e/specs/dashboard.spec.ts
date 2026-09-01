@@ -1,5 +1,5 @@
 import { test, expect } from "../fixtures/test-fixtures.js";
-import { createAsset } from "../fixtures/seed.js";
+import { createAsset, createChecklist } from "../fixtures/seed.js";
 
 test.describe("仪表盘", () => {
   test("显示仪表盘页面", async ({ page }) => {
@@ -34,5 +34,21 @@ test.describe("仪表盘", () => {
     const svgCount = await svgCharts.count();
     // 至少有一个 SVG 渲染
     expect(svgCount).toBeGreaterThan(0);
+  });
+
+  test("进行中清单卡片显示并跳转", async ({ page }) => {
+    const cl = await createChecklist({
+      title: "仪表盘清单",
+      scenario: "moving",
+      items: [{ content: "打包书籍" }],
+    });
+
+    await page.goto("/");
+    const card = page.getByTestId("dashboard-checklist").filter({ hasText: "仪表盘清单" });
+    await expect(card).toBeVisible();
+
+    await card.click();
+    await expect(page).toHaveURL(new RegExp(`/checklists/${cl.id}$`));
+    await expect(page.getByText("打包书籍")).toBeVisible();
   });
 });
