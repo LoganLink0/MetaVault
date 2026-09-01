@@ -38,7 +38,7 @@ const typeColorMap: Record<AssetType, string> = {
 };
 
 const statusBadgeStyles: Record<AssetStatus, string> = {
-  active: "bg-[#4a9e6e]/10 text-[#4a9e6e] dark:bg-[#4a9e6e]/20",
+  active: "bg-[#4a9e6e]/10 text-[#4a9e6e]",
   idle: "bg-sub08 text-sub",
   expired: "bg-phy08 text-wrn",
   disposed: "bg-ink4/50 text-ink2",
@@ -128,6 +128,50 @@ function AssetList() {
 
   return (
     <div className="space-y-4">
+      {/* 快速筛选标签栏 */}
+      <div className="flex flex-wrap gap-2">
+        {(["all", "physical", "digital", "subscription"] as const).map((t) => {
+          const isActive = t === "all" ? !assetType : assetType === t;
+          const label = t === "all" ? "全部" : typeLabels[t];
+          return (
+            <button
+              key={t}
+              onClick={() => {
+                const p = new URLSearchParams(searchParams);
+                if (t === "all") p.delete("type"); else p.set("type", t);
+                setSearchParams(p);
+              }}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                isActive ? "bg-ink text-pg" : "text-ink2 hover:bg-[rgba(44,36,24,.04)]"
+              }`}
+            >
+              {t !== "all" && <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: typeColorMap[t as AssetType] }} />}
+              {label}
+            </button>
+          );
+        })}
+        <span className="text-ink3 self-center">|</span>
+        {(["all", "active", "idle", "expired", "disposed"] as const).map((s) => {
+          const isActive = s === "all" ? !status : status === s;
+          const label = s === "all" ? "全部" : statusLabels[s];
+          return (
+            <button
+              key={s}
+              onClick={() => {
+                const p = new URLSearchParams(searchParams);
+                if (s === "all") p.delete("status"); else p.set("status", s);
+                setSearchParams(p);
+              }}
+              className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                isActive ? "bg-ink text-pg" : "text-ink2 hover:bg-[rgba(44,36,24,.04)]"
+              }`}
+            >
+              {label}
+            </button>
+          );
+        })}
+      </div>
+
       {/* 筛选栏 */}
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="flex flex-wrap items-center gap-2">

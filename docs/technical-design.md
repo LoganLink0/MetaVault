@@ -182,7 +182,7 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
 
 ```
 client/src/
-├── main.tsx                    # 入口（QueryClientProvider + ThemeProvider + BrowserRouter）
+├── main.tsx                    # 入口（QueryClientProvider + BrowserRouter）
 ├── App.tsx                     # 路由定义
 ├── lib/
 │   ├── api-client.ts           # fetch 基础封装
@@ -202,16 +202,14 @@ client/src/
 │   └── useDashboard.ts         # 仪表盘统计 hooks
 ├── components/
 │   ├── ui/                     # shadcn/ui 组件（Card/CardColorBar, Badge含类型variant）
-│   ├── theme/
-│   │   └── ThemeProvider.tsx   # 深色模式（context + localStorage + class toggle）
 │   ├── layout/
 │   │   ├── Sidebar.tsx         # 侧边导航（>=768px 显示）
 │   │   ├── BottomNav.tsx       # 底部 Tab 导航（<768px 显示）
 │   │   ├── Header.tsx          # 顶部栏（搜索+通知面板）
 │   │   └── AppLayout.tsx       # 布局容器
 │   ├── asset/
-│   │   ├── AssetList.tsx       # 资产列表（筛选+卡片网格）
-│   │   ├── AssetDetail.tsx     # 资产详情
+│   │   ├── AssetList.tsx       # 资产列表（快速筛选标签栏 + Select 下拉 + 卡片网格）
+│   │   ├── AssetDetail.tsx     # 资产详情（含物理资产当前估值+折旧条）
 │   │   └── AssetForm.tsx       # 资产创建/编辑表单
 │   ├── supplier/
 │   │   ├── SupplierList.tsx    # 供应商列表
@@ -219,11 +217,11 @@ client/src/
 │   │   └── SupplierForm.tsx    # 供应商表单
 │   ├── dashboard/
 │   │   ├── Dashboard.tsx       # 仪表盘主组件（6格统计条+类型分布条+甘特+日历+提醒）
-│   │   ├── GanttTimeline.tsx   # 到期热力条（近60天，SVG制图学风格）
+│   │   ├── GanttTimeline.tsx   # 到期热力条（近60天，SVG制图学风格，条可点击跳转资产详情）
 │   │   ├── MiniCalendar.tsx    # 日历组件（年月跳转+类型色点标记）
 │   │   └── [内联] ReminderPanel / TypeDistribution / MonthlyExpirySummary
 │   ├── import/
-│   │   └── ImportWizard.tsx    # 导入向导（上传→预览→映射→导入）
+│   │   └── ImportWizard.tsx    # 导入向导（拖拽上传→预览→映射→导入）
 │   ├── export/
 │   │   └── ExportPage.tsx      # 数据导出（资产/供应商Excel导出）
 │   ├── notification/
@@ -446,24 +444,15 @@ export const test = base.extend({
 
 ### 6.4 表单测试与 React 19
 
-Playwright 的 `fill()` 直接设置 DOM value，不触发 React 19 的 synthetic event，导致表单 state 不更新。解决方案：
+Playwright 的 `fill()` 在当前版本可以正确触发 React 19 的 onChange 事件（2026-05-28 验证通过）。推荐直接使用 `fill()` 而非 `evaluate` + `nativeInputValueSetter` 方式，后者仅为备用方案。
 
-```typescript
-// 用 nativeInputValueSetter + dispatchEvent 触发 React state 更新
-await nameInput.evaluate((el: HTMLInputElement) => {
-  const setter = Object.getOwnPropertyDescriptor(
-    window.HTMLInputElement.prototype, "value"
-  )?.set;
-  setter?.call(el, "TestLaptop");
-  el.dispatchEvent(new Event("input", { bubbles: true }));
-});
-```
+shadcn/ui 的 Radix Select 组件在 DOM 中表现为 `combobox` role（不是 `button`），选择器需用 `page.locator("main form").getByRole("combobox")` 限定在表单内。
 
-shadcn/ui 的 Radix Select 组件在 DOM 中表现为 `combobox` role（不是 `button`），选择器需用 `getByRole("combobox")`。
-
-- **表单定位器**：Header 搜索框也在 `<form>` 内，`page.locator("form input")` 会匹配搜索框。需用 `page.locator("main form input")` 或 `page.locator("form input").nth(1)` 排除搜索框。
-- **编辑按钮**：shadcn `<Button>` 渲染为 `<button>` 不是 `<a>`，需用 `getByRole("button")` 不是 `getByRole("link")`。
+关键注意事项：
+- **Radix Select 类型切换**：切换资产类型时，分类 Select 的选项列表变化，当前值不在新列表中会触发 `onValueChange("")`。AssetForm 已在分类 Select 的 onValueChange 中忽略空值，防止 category 被覆盖。
+- **表单定位器**：Header 搜索框也在 `<form>` 内，`page.locator("form input")` 会匹配搜索框。需用 `page.locator("main form input")` 排除。
 - **收藏验证**：SQLite 存储 `is_favorite` 为 `1`/`0` 不是 `true`/`false`，断言用 `toBeTruthy()` 不是 `toBe(true)`。
+- **waitForURL 匹配**：`**/assets/*` 会匹配 `/assets/new`，跳转验证需用正则 `/\/assets\/[0-9a-f-]+$/` 排除新建页面路径。
 
 ### 6.5 运行命令
 

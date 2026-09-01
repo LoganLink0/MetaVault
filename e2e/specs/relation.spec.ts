@@ -13,7 +13,7 @@ test.describe("关联管理", () => {
     await page.locator("section, div").filter({ hasText: "关联资产" }).getByRole("button", { name: "添加" }).click();
 
     // 搜索目标资产
-    const searchInput = page.locator("input[placeholder='搜索资产...']");
+    const searchInput = page.locator("main input[placeholder='搜索资产...']");
     await searchInput.fill("关联目标");
     await page.getByRole("button", { name: "搜索" }).click();
     await page.waitForLoadState("networkidle");

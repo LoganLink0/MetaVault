@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Separator } from "@/components/ui/separator";
 import {
   Select,
   SelectContent,
@@ -38,6 +39,29 @@ const categories: Record<AssetType, string[]> = {
   digital: ["digital.domain", "digital.course", "digital.ebook", "digital.software_license", "digital.account", "digital.other"],
   subscription: ["subscription.saas", "subscription.membership", "subscription.cloud_service", "subscription.streaming", "subscription.insurance", "subscription.other"],
 };
+
+const typeBorder: Record<AssetType, string> = {
+  physical: "border-phy",
+  digital: "border-dig",
+  subscription: "border-sub",
+};
+
+const typeText: Record<AssetType, string> = {
+  physical: "text-phy",
+  digital: "text-dig",
+  subscription: "text-sub",
+};
+
+function SectionHeader({ children, className }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div className="flex items-center gap-3">
+      <h3 className={`font-display text-sm font-semibold tracking-wide whitespace-nowrap ${className ?? "text-ink2"}`}>
+        {children}
+      </h3>
+      <Separator className="flex-1" />
+    </div>
+  );
+}
 
 function ScreenshotOcr({ onOcrResult }: { onOcrResult: (r: OcrResult) => void }) {
   const [ocrLoading, setOcrLoading] = useState(false);
@@ -164,83 +188,98 @@ function AssetForm() {
     setForm((f) => ({ ...f, tags: f.tags?.filter((t) => t !== tag) }));
   }
 
-  // 块级 cast：按类型获取 ext，消除逐属性断言
   const pExt = form.type === "physical" ? (form.ext as PhysicalExt) : null;
   const dExt = form.type === "digital" ? (form.ext as DigitalExt) : null;
   const sExt = form.type === "subscription" ? (form.ext as SubscriptionExt) : null;
 
   return (
-    <form onSubmit={handleSubmit} className="max-w-2xl space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-8">
       <h2 className="font-display text-xl font-bold tracking-[2px] uppercase">{isEdit ? "编辑资产" : "新建资产"}</h2>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label>名称</Label>
-          <Input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required />
+      {/* 基本信息 */}
+      <div className="space-y-4">
+        <SectionHeader>基本信息</SectionHeader>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="space-y-2">
+            <Label>名称</Label>
+            <Input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required />
+          </div>
+          <div className="space-y-2">
+            <Label>类型</Label>
+            <Select value={form.type} onValueChange={(v: AssetType) => setForm((f) => ({ ...f, type: v, category: categories[v][0] }))}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {assetTypes.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>分类</Label>
+            <Select value={form.category} onValueChange={(v) => { if (v) setForm((f) => ({ ...f, category: v })); }}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {categories[form.type].map((c) => <SelectItem key={c} value={c}>{categoryLabels[c] ?? c}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>状态</Label>
+            <Select value={form.status} onValueChange={(v: AssetStatus) => setForm((f) => ({ ...f, status: v }))}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {assetStatuses.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
+      </div>
 
-        <div className="space-y-2">
-          <Label>类型</Label>
-          <Select value={form.type} onValueChange={(v: AssetType) => setForm((f) => ({ ...f, type: v, category: categories[v][0] }))}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {assetTypes.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-2">
-          <Label>分类</Label>
-          <Select value={form.category} onValueChange={(v) => setForm((f) => ({ ...f, category: v }))}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {categories[form.type].map((c) => <SelectItem key={c} value={c}>{categoryLabels[c] ?? c}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-2">
-          <Label>状态</Label>
-          <Select value={form.status} onValueChange={(v: AssetStatus) => setForm((f) => ({ ...f, status: v }))}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {assetStatuses.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-2">
-          <Label>获取日期</Label>
-          <Input type="date" value={form.purchase_date ?? ""} onChange={(e) => setForm((f) => ({ ...f, purchase_date: e.target.value || undefined }))} />
-        </div>
-
-        <div className="space-y-2">
-          <Label>获取价格</Label>
-          <Input type="number" value={form.purchase_price ?? ""} onChange={(e) => setForm((f) => ({ ...f, purchase_price: e.target.value ? Number(e.target.value) : undefined }))} />
-        </div>
-
-        <div className="space-y-2">
-          <Label>供应商</Label>
-          <Select
-            value={form.supplier_id ?? "none"}
-            onValueChange={(v) => setForm((f) => ({ ...f, supplier_id: v === "none" ? undefined : v }))}
-          >
-            <SelectTrigger className="w-full"><SelectValue placeholder="选择供应商" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">不选择</SelectItem>
-              {filteredSuppliers?.map((s) => (
-                <SelectItem key={s.id} value={s.id}>
-                  {s.is_favorite ? "★ " : ""}{s.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+      {/* 获取信息 */}
+      <div className="space-y-4">
+        <SectionHeader>获取信息</SectionHeader>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="space-y-2">
+            <Label>获取日期</Label>
+            <Input type="date" value={form.purchase_date ?? ""} onChange={(e) => setForm((f) => ({ ...f, purchase_date: e.target.value || undefined }))} />
+          </div>
+          <div className="space-y-2">
+            <Label>获取价格</Label>
+            <Input type="number" value={form.purchase_price ?? ""} onChange={(e) => setForm((f) => ({ ...f, purchase_price: e.target.value ? Number(e.target.value) : undefined }))} />
+          </div>
+          <div className="space-y-2">
+            <Label>币种</Label>
+            <Select value={form.currency} onValueChange={(v) => setForm((f) => ({ ...f, currency: v }))}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="CNY">人民币 (CNY)</SelectItem>
+                <SelectItem value="USD">美元 (USD)</SelectItem>
+                <SelectItem value="EUR">欧元 (EUR)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2 lg:col-span-3">
+            <Label>供应商</Label>
+            <Select
+              value={form.supplier_id ?? "none"}
+              onValueChange={(v) => setForm((f) => ({ ...f, supplier_id: v === "none" ? undefined : v }))}
+            >
+              <SelectTrigger className="w-full"><SelectValue placeholder="选择供应商" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">不选择</SelectItem>
+                {filteredSuppliers?.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.is_favorite ? "★ " : ""}{s.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
 
       {/* 标签 */}
-      <div className="space-y-2">
-        <Label>标签</Label>
+      <div className="space-y-4">
+        <SectionHeader>标签</SectionHeader>
         <div className="flex items-center gap-2">
           <Input value={tagInput} onChange={(e) => setTagInput(e.target.value)} placeholder="输入标签后回车" onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addTag(); } }} />
           <Button type="button" variant="secondary" onClick={addTag}>添加</Button>
@@ -257,141 +296,150 @@ function AssetForm() {
       </div>
 
       {/* 备注 */}
-      <div className="space-y-2">
-        <Label>备注</Label>
+      <div className="space-y-4">
+        <SectionHeader>备注</SectionHeader>
         <Textarea value={form.notes ?? ""} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value || undefined }))} rows={3} />
       </div>
 
       {/* 物理资产扩展字段 */}
       {pExt && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label>规格型号</Label>
-            <Input value={pExt.model ?? ""} onChange={(e) => setForm((f) => ({ ...f, ext: { ...(f.ext as PhysicalExt), model: e.target.value } }))} />
-          </div>
-          <div className="space-y-2">
-            <Label>数量</Label>
-            <Input type="number" value={pExt.quantity ?? ""} onChange={(e) => setForm((f) => ({ ...f, ext: { ...(f.ext as PhysicalExt), quantity: e.target.value ? Number(e.target.value) : undefined } }))} />
-          </div>
-          <div className="space-y-2">
-            <Label>计量单位</Label>
-            <Input value={pExt.unit ?? ""} placeholder="个/台/套" onChange={(e) => setForm((f) => ({ ...f, ext: { ...(f.ext as PhysicalExt), unit: e.target.value } }))} />
-          </div>
-          <div className="space-y-2">
-            <Label>存放位置</Label>
-            <Input value={pExt.location ?? ""} onChange={(e) => setForm((f) => ({ ...f, ext: { ...(f.ext as PhysicalExt), location: e.target.value } }))} />
-          </div>
-          <div className="space-y-2">
-            <Label>用途场景</Label>
-            <Input value={pExt.usage ?? ""} onChange={(e) => setForm((f) => ({ ...f, ext: { ...(f.ext as PhysicalExt), usage: e.target.value } }))} />
-          </div>
-          <div className="space-y-2">
-            <Label>归属人</Label>
-            <Input value={pExt.owner ?? ""} onChange={(e) => setForm((f) => ({ ...f, ext: { ...(f.ext as PhysicalExt), owner: e.target.value } }))} />
-          </div>
-          <div className="space-y-2">
-            <Label>资产来源</Label>
-            <Select value={pExt.source ?? "purchase"} onValueChange={(v) => setForm((f) => ({ ...f, ext: { ...(f.ext as PhysicalExt), source: v } }))}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="purchase">购入</SelectItem>
-                <SelectItem value="self_build">自建</SelectItem>
-                <SelectItem value="donation">捐赠</SelectItem>
-                <SelectItem value="transfer">调拨</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label>保修到期日</Label>
-            <Input type="date" value={pExt.warranty_expiry ?? ""} onChange={(e) => setForm((f) => ({ ...f, ext: { ...(f.ext as PhysicalExt), warranty_expiry: e.target.value } }))} />
-          </div>
-          <div className="space-y-2">
-            <Label>序列号</Label>
-            <Input value={pExt.serial_number ?? ""} onChange={(e) => setForm((f) => ({ ...f, ext: { ...(f.ext as PhysicalExt), serial_number: e.target.value } }))} />
+        <div className={`space-y-4 border-l-2 ${typeBorder.physical} pl-4`}>
+          <SectionHeader className={typeText.physical}>物理资产详情</SectionHeader>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label>规格型号</Label>
+              <Input value={pExt.model ?? ""} onChange={(e) => setForm((f) => ({ ...f, ext: { ...(f.ext as PhysicalExt), model: e.target.value } }))} />
+            </div>
+            <div className="space-y-2">
+              <Label>数量</Label>
+              <Input type="number" value={pExt.quantity ?? ""} onChange={(e) => setForm((f) => ({ ...f, ext: { ...(f.ext as PhysicalExt), quantity: e.target.value ? Number(e.target.value) : undefined } }))} />
+            </div>
+            <div className="space-y-2">
+              <Label>计量单位</Label>
+              <Input value={pExt.unit ?? ""} placeholder="个/台/套" onChange={(e) => setForm((f) => ({ ...f, ext: { ...(f.ext as PhysicalExt), unit: e.target.value } }))} />
+            </div>
+            <div className="space-y-2">
+              <Label>存放位置</Label>
+              <Input value={pExt.location ?? ""} onChange={(e) => setForm((f) => ({ ...f, ext: { ...(f.ext as PhysicalExt), location: e.target.value } }))} />
+            </div>
+            <div className="space-y-2">
+              <Label>用途场景</Label>
+              <Input value={pExt.usage ?? ""} onChange={(e) => setForm((f) => ({ ...f, ext: { ...(f.ext as PhysicalExt), usage: e.target.value } }))} />
+            </div>
+            <div className="space-y-2">
+              <Label>归属人</Label>
+              <Input value={pExt.owner ?? ""} onChange={(e) => setForm((f) => ({ ...f, ext: { ...(f.ext as PhysicalExt), owner: e.target.value } }))} />
+            </div>
+            <div className="space-y-2">
+              <Label>资产来源</Label>
+              <Select value={pExt.source ?? "purchase"} onValueChange={(v) => setForm((f) => ({ ...f, ext: { ...(f.ext as PhysicalExt), source: v } }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="purchase">购入</SelectItem>
+                  <SelectItem value="self_build">自建</SelectItem>
+                  <SelectItem value="donation">捐赠</SelectItem>
+                  <SelectItem value="transfer">调拨</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>保修到期日</Label>
+              <Input type="date" value={pExt.warranty_expiry ?? ""} onChange={(e) => setForm((f) => ({ ...f, ext: { ...(f.ext as PhysicalExt), warranty_expiry: e.target.value } }))} />
+            </div>
+            <div className="space-y-2">
+              <Label>序列号</Label>
+              <Input value={pExt.serial_number ?? ""} onChange={(e) => setForm((f) => ({ ...f, ext: { ...(f.ext as PhysicalExt), serial_number: e.target.value } }))} />
+            </div>
           </div>
         </div>
       )}
 
       {/* 数字资产扩展字段 */}
       {dExt && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label>平台</Label>
-            <Input value={dExt.platform ?? ""} onChange={(e) => setForm((f) => ({ ...f, ext: { ...(f.ext as DigitalExt), platform: e.target.value } }))} />
-          </div>
-          <div className="space-y-2">
-            <Label>到期日</Label>
-            <Input type="date" value={dExt.expiry_date ?? ""} onChange={(e) => setForm((f) => ({ ...f, ext: { ...(f.ext as DigitalExt), expiry_date: e.target.value } }))} />
-          </div>
-          <div className="space-y-2">
-            <Label>账号</Label>
-            <Input value={dExt.account ?? ""} onChange={(e) => setForm((f) => ({ ...f, ext: { ...(f.ext as DigitalExt), account: e.target.value } }))} />
-          </div>
-          <div className="space-y-2">
-            <label className="flex items-center gap-2 text-sm font-medium">
-              <input
-                type="checkbox"
-                checked={dExt.auto_renew ?? false}
-                onChange={(e) => setForm((f) => ({ ...f, ext: { ...(f.ext as DigitalExt), auto_renew: e.target.checked } }))}
-              />
-              自动续期
-            </label>
+        <div className={`space-y-4 border-l-2 ${typeBorder.digital} pl-4`}>
+          <SectionHeader className={typeText.digital}>数字资产详情</SectionHeader>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label>平台</Label>
+              <Input value={dExt.platform ?? ""} placeholder="平台" onChange={(e) => setForm((f) => ({ ...f, ext: { ...(f.ext as DigitalExt), platform: e.target.value } }))} />
+            </div>
+            <div className="space-y-2">
+              <Label>到期日</Label>
+              <Input type="date" value={dExt.expiry_date ?? ""} onChange={(e) => setForm((f) => ({ ...f, ext: { ...(f.ext as DigitalExt), expiry_date: e.target.value } }))} />
+            </div>
+            <div className="space-y-2">
+              <Label>账号</Label>
+              <Input value={dExt.account ?? ""} onChange={(e) => setForm((f) => ({ ...f, ext: { ...(f.ext as DigitalExt), account: e.target.value } }))} />
+            </div>
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 text-sm font-medium">
+                <input
+                  type="checkbox"
+                  checked={dExt.auto_renew ?? false}
+                  onChange={(e) => setForm((f) => ({ ...f, ext: { ...(f.ext as DigitalExt), auto_renew: e.target.checked } }))}
+                />
+                自动续期
+              </label>
+            </div>
           </div>
         </div>
       )}
 
       {/* 订阅扩展字段 */}
       {sExt && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label>计费周期</Label>
-            <Select value={sExt.billing_cycle ?? "monthly"} onValueChange={(v) => setForm((f) => ({ ...f, ext: { ...(f.ext as SubscriptionExt), billing_cycle: v as SubscriptionExt["billing_cycle"] } }))}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="monthly">月付</SelectItem>
-                <SelectItem value="yearly">年付</SelectItem>
-                <SelectItem value="lifetime">终身</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label>每期费用</Label>
-            <Input type="number" value={sExt.amount ?? ""} onChange={(e) => setForm((f) => ({ ...f, ext: { ...(f.ext as SubscriptionExt), amount: e.target.value ? Number(e.target.value) : undefined } }))} />
-          </div>
-          <div className="space-y-2">
-            <Label>下次扣费日</Label>
-            <Input type="date" value={sExt.next_billing_date ?? ""} onChange={(e) => setForm((f) => ({ ...f, ext: { ...(f.ext as SubscriptionExt), next_billing_date: e.target.value } }))} />
-          </div>
-          <div className="space-y-2">
-            <Label>试用到期日</Label>
-            <Input type="date" value={sExt.trial_end ?? ""} onChange={(e) => setForm((f) => ({ ...f, ext: { ...(f.ext as SubscriptionExt), trial_end: e.target.value } }))} />
-          </div>
-          <div className="space-y-2">
-            <Label>使用频率</Label>
-            <Select value={sExt.usage_frequency ?? "monthly"} onValueChange={(v) => setForm((f) => ({ ...f, ext: { ...(f.ext as SubscriptionExt), usage_frequency: v as SubscriptionExt["usage_frequency"] } }))}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="daily">每天</SelectItem>
-                <SelectItem value="weekly">每周</SelectItem>
-                <SelectItem value="monthly">每月</SelectItem>
-                <SelectItem value="rarely">很少</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2 md:col-span-2">
-            <Label>订阅截图（OCR 自动识别）</Label>
-            <ScreenshotOcr onOcrResult={(r) => {
-              setForm((f) => ({
-                ...f,
-                name: r.service_name ?? f.name,
-                ext: {
-                  ...(f.ext as SubscriptionExt),
-                  ...(r.amount != null && { amount: r.amount }),
-                  ...(r.billing_cycle && { billing_cycle: r.billing_cycle }),
-                  ...(r.next_billing_date && { next_billing_date: r.next_billing_date }),
-                },
-              }));
-            }} />
+        <div className={`space-y-4 border-l-2 ${typeBorder.subscription} pl-4`}>
+          <SectionHeader className={typeText.subscription}>订阅详情</SectionHeader>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label>计费周期</Label>
+              <Select value={sExt.billing_cycle ?? "monthly"} onValueChange={(v) => setForm((f) => ({ ...f, ext: { ...(f.ext as SubscriptionExt), billing_cycle: v as SubscriptionExt["billing_cycle"] } }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="monthly">月付</SelectItem>
+                  <SelectItem value="yearly">年付</SelectItem>
+                  <SelectItem value="lifetime">终身</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>每期费用</Label>
+              <Input type="number" value={sExt.amount ?? ""} onChange={(e) => setForm((f) => ({ ...f, ext: { ...(f.ext as SubscriptionExt), amount: e.target.value ? Number(e.target.value) : undefined } }))} />
+            </div>
+            <div className="space-y-2">
+              <Label>下次扣费日</Label>
+              <Input type="date" value={sExt.next_billing_date ?? ""} onChange={(e) => setForm((f) => ({ ...f, ext: { ...(f.ext as SubscriptionExt), next_billing_date: e.target.value } }))} />
+            </div>
+            <div className="space-y-2">
+              <Label>试用到期日</Label>
+              <Input type="date" value={sExt.trial_end ?? ""} onChange={(e) => setForm((f) => ({ ...f, ext: { ...(f.ext as SubscriptionExt), trial_end: e.target.value } }))} />
+            </div>
+            <div className="space-y-2">
+              <Label>使用频率</Label>
+              <Select value={sExt.usage_frequency ?? "monthly"} onValueChange={(v) => setForm((f) => ({ ...f, ext: { ...(f.ext as SubscriptionExt), usage_frequency: v as SubscriptionExt["usage_frequency"] } }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="daily">每天</SelectItem>
+                  <SelectItem value="weekly">每周</SelectItem>
+                  <SelectItem value="monthly">每月</SelectItem>
+                  <SelectItem value="rarely">很少</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2 lg:col-span-3">
+              <Label>订阅截图（OCR 自动识别）</Label>
+              <ScreenshotOcr onOcrResult={(r) => {
+                setForm((f) => ({
+                  ...f,
+                  name: r.service_name ?? f.name,
+                  ext: {
+                    ...(f.ext as SubscriptionExt),
+                    ...(r.amount != null && { amount: r.amount }),
+                    ...(r.billing_cycle && { billing_cycle: r.billing_cycle }),
+                    ...(r.next_billing_date && { next_billing_date: r.next_billing_date }),
+                  },
+                }));
+              }} />
+            </div>
           </div>
         </div>
       )}

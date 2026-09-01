@@ -79,3 +79,31 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
   auth      TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS checklists (
+  id          TEXT PRIMARY KEY,
+  title       TEXT NOT NULL,
+  scenario    TEXT NOT NULL CHECK(scenario IN ('business_trip','travel','daily_check','moving','custom')),
+  status      TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','completed','archived')),
+  due_date    TEXT,
+  notes       TEXT,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_checklists_scenario ON checklists(scenario);
+CREATE INDEX IF NOT EXISTS idx_checklists_status ON checklists(status);
+
+CREATE TABLE IF NOT EXISTS checklist_items (
+  id            TEXT PRIMARY KEY,
+  checklist_id  TEXT NOT NULL REFERENCES checklists(id) ON DELETE CASCADE,
+  content       TEXT NOT NULL,
+  checked       INTEGER DEFAULT 0,
+  asset_id      TEXT REFERENCES assets(id) ON DELETE SET NULL,
+  sort_order    INTEGER DEFAULT 0,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_checklist_items_checklist ON checklist_items(checklist_id);
+CREATE INDEX IF NOT EXISTS idx_checklist_items_asset ON checklist_items(asset_id);

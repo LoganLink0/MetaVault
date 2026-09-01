@@ -10,11 +10,11 @@ router.get("/", async (req: Request, res: Response) => {
   const db = await getDb();
   const unreadOnly = req.query.unread_only === "true";
 
-  let sql = "SELECT n.*, a.name as asset_name FROM notifications n JOIN assets a ON n.asset_id = a.id";
+  let sql = "SELECT n.*, a.name as asset_name FROM notifications n JOIN assets a ON n.asset_id = a.id WHERE n.is_dismissed = 0";
   const params: unknown[] = [];
 
   if (unreadOnly) {
-    sql += " WHERE n.is_read = 0 AND n.is_dismissed = 0";
+    sql += " AND n.is_read = 0";
   }
 
   sql += " ORDER BY n.trigger_date DESC";

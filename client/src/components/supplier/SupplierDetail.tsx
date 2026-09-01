@@ -19,7 +19,7 @@ const typeBadgeVariant: Record<string, "physical" | "digital" | "subscription" |
 };
 
 const statusBadgeStyles: Record<string, string> = {
-  active: "bg-[#4a9e6e]/10 text-[#4a9e6e] dark:bg-[#4a9e6e]/20",
+  active: "bg-[#4a9e6e]/10 text-[#4a9e6e]",
   idle: "bg-sub08 text-sub",
   expired: "bg-phy08 text-wrn",
   disposed: "bg-ink4/50 text-ink2",

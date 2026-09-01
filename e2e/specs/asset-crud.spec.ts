@@ -54,32 +54,26 @@ test.describe("资产 CRUD", () => {
     await page.goto("/assets/new");
     await page.waitForLoadState("networkidle");
 
-    // 填写名称（表单中第一个 input）
+    // 填写名称
     const nameInput = page.locator("main form input").first();
-    await nameInput.evaluate((el: HTMLInputElement) => {
-      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
-      setter?.call(el, "TestLaptop");
-      el.dispatchEvent(new Event("input", { bubbles: true }));
-    });
+    await nameInput.click();
+    await nameInput.fill("TestLaptop");
 
     // 分类改为手机
-    const categorySelect = page.getByRole("combobox").nth(1);
+    const categorySelect = page.locator("main form").getByRole("combobox").nth(1);
     await categorySelect.click();
     await page.getByRole("option", { name: "手机" }).click();
 
     // 填写获取价格
     const priceInput = page.locator("main form input[type='number']").first();
-    await priceInput.evaluate((el: HTMLInputElement) => {
-      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
-      setter?.call(el, "5999");
-      el.dispatchEvent(new Event("input", { bubbles: true }));
-    });
+    await priceInput.click();
+    await priceInput.fill("5999");
 
     // 提交表单
     await page.getByRole("button", { name: "保存" }).click();
 
     // 验证跳转到详情页
-    await page.waitForURL("**/assets/*", { timeout: 10000 });
+    await page.waitForURL(/\/assets\/[0-9a-f-]+$/, { timeout: 10000 });
     await page.waitForLoadState("networkidle");
     await expect(page.getByText("TestLaptop")).toBeVisible();
   });
@@ -90,32 +84,25 @@ test.describe("资产 CRUD", () => {
 
     // 填写名称
     const nameInput = page.locator("main form input").first();
-    await nameInput.evaluate((el: HTMLInputElement) => {
-      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
-      setter?.call(el, "TestDigital");
-      el.dispatchEvent(new Event("input", { bubbles: true }));
-    });
+    await nameInput.click();
+    await nameInput.fill("TestDigital");
 
     // 切换类型为数字资产
-    const typeSelect = page.getByRole("combobox").first();
+    const typeSelect = page.locator("main form").getByRole("combobox").first();
     await typeSelect.click();
     await page.getByRole("option", { name: "数字资产" }).click();
+    await page.waitForTimeout(500);
 
     // 填写平台
     const platformInput = page.locator("main form input[placeholder='平台']");
-    if (await platformInput.isVisible()) {
-      await platformInput.evaluate((el: HTMLInputElement) => {
-        const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
-        setter?.call(el, "Steam");
-        el.dispatchEvent(new Event("input", { bubbles: true }));
-      });
-    }
+    await platformInput.click();
+    await platformInput.fill("Steam");
 
     // 提交表单
     await page.getByRole("button", { name: "保存" }).click();
 
     // 验证跳转到详情页
-    await page.waitForURL("**/assets/*", { timeout: 10000 });
+    await page.waitForURL(/\/assets\/[0-9a-f-]+$/, { timeout: 10000 });
     await page.waitForLoadState("networkidle");
     await expect(page.getByText("TestDigital")).toBeVisible();
   });

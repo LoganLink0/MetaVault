@@ -17,6 +17,7 @@ import notificationsRouter from "./routes/notifications.js";
 import importRouter from "./routes/import.js";
 import dashboardRouter from "./routes/dashboard.js";
 import exportRouter from "./routes/export.js";
+import checklistsRouter from "./routes/checklists.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -36,6 +37,8 @@ if (process.env.NODE_ENV === "test") {
     db.exec("DELETE FROM notifications");
     db.exec("DELETE FROM screenshots");
     db.exec("DELETE FROM push_subscriptions");
+    db.exec("DELETE FROM checklist_items");
+    db.exec("DELETE FROM checklists");
     db.exec("DELETE FROM assets");
     db.exec("DELETE FROM suppliers");
     res.json({ success: true });
@@ -49,6 +52,7 @@ app.use("/api/notifications", notificationsRouter);
 app.use("/api/import", importRouter);
 app.use("/api/dashboard", dashboardRouter);
 app.use("/api/export", exportRouter);
+app.use("/api/checklists", checklistsRouter);
 
 // 生产部署：提供前端静态文件 + SPA fallback
 const clientDist = path.join(__dirname, "../../client/dist");
@@ -62,6 +66,10 @@ app.use(errorHandler);
 async function start() {
   await getDb();
   console.log("Database initialized");
+
+  // 初始化 Web Push
+  const { initPush } = await import("./services/push-service.js");
+  initPush();
 
   // 启动时扫描一次提醒
   const { scanNotifications } = await import("./services/notification-scanner.js");

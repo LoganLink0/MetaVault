@@ -23,7 +23,7 @@ export default defineConfig({
   webServer: {
     command: `node ${serverDist}`,
     port: 3001,
-    timeout: 15000,
+    timeout: 30000,
     reuseExistingServer: true,
     env: {
       NODE_ENV: "test",

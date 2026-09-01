@@ -7,19 +7,6 @@ const TYPE_COLORS = {
   subscription: "#D4A843",
 };
 
-const TYPE_LABELS: Record<string, string> = {
-  physical: "物理",
-  digital: "数字",
-  subscription: "订阅",
-};
-
-const URGENCY = {
-  expired: { color: "#b8a994", opacity: 0.6, label: "已过期" },
-  critical: { color: "#E74C3C", opacity: 1, label: "紧急" },
-  warning: { color: "", opacity: 1, label: "" },
-  safe: { color: "", opacity: 0.5, label: "" },
-} as const;
-
 interface TimelineItem {
   id: string;
   name: string;
@@ -78,9 +65,10 @@ function extractTimelineItems(assets: Asset[], now: Date): TimelineItem[] {
 
 interface GanttTimelineProps {
   assets: Asset[];
+  onBarClick?: (assetId: string) => void;
 }
 
-function GanttTimeline({ assets }: GanttTimelineProps) {
+function GanttTimeline({ assets, onBarClick }: GanttTimelineProps) {
   const now = useMemo(() => new Date(), []);
   const windowDays = 60;
 
@@ -241,14 +229,15 @@ function GanttTimeline({ assets }: GanttTimelineProps) {
                   strokeWidth="1.5"
                   opacity={barOpacity * 0.85}
                   style={{ cursor: "pointer" }}
+                  onClick={() => onBarClick?.(item.id)}
                 >
                   <title>{item.name}{item.price != null ? ` · ¥${item.price.toLocaleString()}` : ""} · {daysLabel}</title>
                 </rect>
                 {/* Bar fill */}
                 {item.urgency === "expired" ? (
-                  <rect x={chartX + 2} y={y + 2} width={Math.max(barW - 4, 2)} height={barH - 4} rx="4" fill="url(#expiredHatch)" />
+                  <rect x={chartX + 2} y={y + 2} width={Math.max(barW - 4, 2)} height={barH - 4} rx="4" fill="url(#expiredHatch)" style={{ cursor: "pointer" }} onClick={() => onBarClick?.(item.id)} />
                 ) : (
-                  <rect x={chartX + 2} y={y + 2} width={Math.max(barW - 4, 2)} height={barH - 4} rx="4" fill={barCol} opacity={0.22 * barOpacity} />
+                  <rect x={chartX + 2} y={y + 2} width={Math.max(barW - 4, 2)} height={barH - 4} rx="4" fill={barCol} opacity={0.22 * barOpacity} style={{ cursor: "pointer" }} onClick={() => onBarClick?.(item.id)} />
                 )}
 
                 <text x={chartX - 6} y={textY} fontFamily="JetBrains Mono,monospace" fontSize="12" fill="#6b5d4d" textAnchor="end">{idx + 1}</text>

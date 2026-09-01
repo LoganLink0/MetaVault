@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Check, EyeOff, Bell } from "lucide-react";
 import { useNotifications, useMarkRead, useDismiss } from "@/hooks/useNotifications";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,7 @@ const typeLabels: Record<string, string> = {
 };
 
 function NotificationPage() {
+  const navigate = useNavigate();
   const [filter, setFilter] = useState<"all" | "unread">("unread");
   const { data: notifications } = useNotifications(filter === "unread");
   const markRead = useMarkRead();
@@ -37,7 +39,7 @@ function NotificationPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="font-display text-xl font-bold tracking-[2px] uppercase">通知</h2>
         <div className="flex items-center gap-2">
@@ -70,7 +72,7 @@ function NotificationPage() {
 
       {filtered.length === 0 ? (
         <Card>
-          <CardContent className="py-10 text-center text-muted-foreground">
+          <CardContent className="py-6 text-center text-muted-foreground">
             <Bell className="h-8 w-8 mx-auto mb-2" />
             <p>{filter === "unread" ? "没有未读通知" : "没有通知"}</p>
           </CardContent>
@@ -87,7 +89,13 @@ function NotificationPage() {
                     </Badge>
                     <p className="text-sm font-medium">{n.message}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      {n.asset_name} · {n.trigger_date}
+                      {n.asset_name && (
+                        <span className="cursor-pointer hover:underline text-phy" onClick={() => navigate(`/assets/${n.asset_id}`)}>
+                          {n.asset_name}
+                        </span>
+                      )}
+                      {n.asset_name && n.trigger_date ? " · " : ""}
+                      {n.trigger_date}
                     </p>
                   </div>
                   <div className="flex gap-1">

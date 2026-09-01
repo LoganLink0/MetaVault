@@ -3,6 +3,7 @@ import {
   LayoutDashboard,
   Package,
   Building2,
+  ClipboardCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -10,6 +11,7 @@ const tabs = [
   { to: "/", label: "仪表盘", icon: LayoutDashboard },
   { to: "/assets", label: "资产", icon: Package },
   { to: "/suppliers", label: "供应商", icon: Building2 },
+  { to: "/checklists", label: "清单", icon: ClipboardCheck },
 ];
 
 function BottomNav() {

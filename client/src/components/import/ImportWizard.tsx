@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { Upload, FileText, ArrowRight } from "lucide-react";
+import { Upload, ArrowRight, CheckCircle, XCircle, List } from "lucide-react";
 import { parseImportFile, executeImport } from "@/lib/api-import";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const fieldOptions = [
@@ -21,15 +21,13 @@ function ImportWizard() {
   const [mapping, setMapping] = useState<Record<string, string>>({});
   const [result, setResult] = useState<{ imported: number; errors: number; total: number } | null>(null);
   const [error, setError] = useState("");
+  const [dragging, setDragging] = useState(false);
 
-  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  async function processFile(file: File) {
     setError("");
     try {
       const data = await parseImportFile(file);
       setPreview(data);
-      // 自动映射：尝试匹配列名
       const autoMapping: Record<string, string> = {};
       for (const col of data.columns) {
         const lower = col.toLowerCase();
@@ -48,6 +46,30 @@ function ImportWizard() {
     }
   }
 
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    processFile(file);
+  }
+
+  function handleDragOver(e: React.DragEvent) {
+    e.preventDefault();
+    setDragging(true);
+  }
+
+  function handleDragLeave(e: React.DragEvent) {
+    e.preventDefault();
+    setDragging(false);
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (!file) return;
+    processFile(file);
+  }
+
   async function handleImport() {
     if (!preview) return;
     setError("");
@@ -61,59 +83,69 @@ function ImportWizard() {
   }
 
   return (
-    <div className="space-y-6 max-w-2xl">
-      <h2 className="text-xl font-semibold">数据导入</h2>
+    <div className="space-y-8">
+      <h2 className="font-display text-xl font-bold tracking-[2px] uppercase">数据导入</h2>
 
       {step === "upload" && (
-        <Card>
-          <CardHeader><CardTitle>选择文件</CardTitle></CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-center border-2 border-dashed rounded-lg p-8 text-muted-foreground">
-              <label className="flex flex-col items-center gap-2 cursor-pointer">
-                <Upload className="h-8 w-8" />
-                <span>点击上传 .csv 或 .xlsx 文件</span>
-                <input type="file" accept=".csv,.xlsx,.xls" onChange={handleFileChange} className="hidden" />
-              </label>
-            </div>
-            {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
-          </CardContent>
-        </Card>
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <h3 className="font-display text-sm font-semibold tracking-wide text-ink2">选择文件</h3>
+            <Separator className="flex-1" />
+          </div>
+          <div
+            className={`flex items-center justify-center border-2 border-dashed rounded-lg p-8 text-muted-foreground transition-colors ${dragging ? "border-phy bg-phy/5" : ""}`}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+          >
+            <label className="flex flex-col items-center gap-2 cursor-pointer">
+              <Upload className="h-8 w-8" />
+              <span>{dragging ? "松开以上传" : "点击或拖拽 .csv / .xlsx 文件"}</span>
+              <input type="file" accept=".csv,.xlsx,.xls" onChange={handleFileChange} className="hidden" />
+            </label>
+          </div>
+          {error && <p className="text-sm text-destructive">{error}</p>}
+        </div>
       )}
 
       {step === "preview" && preview && (
         <>
-          <Card>
-            <CardHeader><CardTitle>数据预览</CardTitle></CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground mb-3">共 {preview.totalRows} 行，显示前 {preview.rows.length} 行</p>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm border">
-                  <thead>
-                    <tr className="bg-muted">
-                      {preview.columns.map((col) => <th key={col} className="px-2 py-1 border text-left">{col}</th>)}
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <h3 className="font-display text-sm font-semibold tracking-wide text-ink2">数据预览</h3>
+              <Separator className="flex-1" />
+            </div>
+            <p className="text-sm text-muted-foreground">共 {preview.totalRows} 行，显示前 {preview.rows.length} 行</p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm border">
+                <thead>
+                  <tr className="bg-muted">
+                    {preview.columns.map((col) => <th key={col} className="px-2 py-1 border text-left">{col}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {preview.rows.map((row, i) => (
+                    <tr key={i}>
+                      {preview.columns.map((col) => <td key={col} className="px-2 py-1 border">{String(row[col] ?? "")}</td>)}
                     </tr>
-                  </thead>
-                  <tbody>
-                    {preview.rows.map((row, i) => (
-                      <tr key={i}>
-                        {preview.columns.map((col) => <td key={col} className="px-2 py-1 border">{String(row[col] ?? "")}</td>)}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
 
-          <Card>
-            <CardHeader><CardTitle>字段映射</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <h3 className="font-display text-sm font-semibold tracking-wide text-ink2">字段映射</h3>
+              <Separator className="flex-1" />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {preview.columns.map((col) => (
-                <div key={col} className="flex items-center gap-3">
-                  <span className="text-sm w-32 truncate">{col}</span>
-                  <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                <div key={col} className="flex items-center gap-2 px-3 py-2 rounded-md border border-ink3 bg-pg">
+                  <span className="text-sm text-ink truncate min-w-0">{col}</span>
+                  <ArrowRight className="h-3.5 w-3.5 text-ink3 shrink-0" />
                   <Select value={mapping[col] || "_skip"} onValueChange={(v) => setMapping((m) => ({ ...m, [col]: v }))}>
-                    <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="w-[120px]"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="_skip">跳过</SelectItem>
                       {fieldOptions.map((f) => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}
@@ -121,8 +153,8 @@ function ImportWizard() {
                   </Select>
                 </div>
               ))}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
           <div className="flex gap-3">
             <Button onClick={handleImport}>确认导入</Button>
@@ -133,15 +165,30 @@ function ImportWizard() {
       )}
 
       {step === "result" && result && (
-        <Card>
-          <CardHeader><CardTitle>导入结果</CardTitle></CardHeader>
-          <CardContent className="space-y-2">
-            <p><FileText className="h-4 w-4 inline mr-1" /> 成功导入 {result.imported} 条</p>
-            {result.errors > 0 && <p className="text-destructive">失败 {result.errors} 条</p>}
-            <p className="text-muted-foreground">总计 {result.total} 行</p>
-            <Button className="mt-4" onClick={() => { setStep("upload"); setPreview(null); setResult(null); }}>继续导入</Button>
-          </CardContent>
-        </Card>
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <h3 className="font-display text-sm font-semibold tracking-wide text-ink2">导入结果</h3>
+            <Separator className="flex-1" />
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            <div className="flex flex-col items-center px-4 py-3 rounded-lg border border-ink3 bg-pg">
+              <CheckCircle className="h-5 w-5 text-phy mb-1" />
+              <span className="text-2xl font-mono font-bold text-ink">{result.imported}</span>
+              <span className="text-xs text-ink2">成功导入</span>
+            </div>
+            <div className="flex flex-col items-center px-4 py-3 rounded-lg border border-ink3 bg-pg">
+              <XCircle className="h-5 w-5 text-wrn mb-1" />
+              <span className="text-2xl font-mono font-bold text-ink">{result.errors}</span>
+              <span className="text-xs text-ink2">失败</span>
+            </div>
+            <div className="flex flex-col items-center px-4 py-3 rounded-lg border border-ink3 bg-pg">
+              <List className="h-5 w-5 text-ink3 mb-1" />
+              <span className="text-2xl font-mono font-bold text-ink">{result.total}</span>
+              <span className="text-xs text-ink2">总计</span>
+            </div>
+          </div>
+          <Button onClick={() => { setStep("upload"); setPreview(null); setResult(null); }}>继续导入</Button>
+        </div>
       )}
     </div>
   );

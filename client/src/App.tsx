@@ -11,6 +11,9 @@ import SupplierForm from "@/components/supplier/SupplierForm";
 import ImportWizard from "@/components/import/ImportWizard";
 import ExportPage from "@/components/export/ExportPage";
 import NotificationPage from "@/components/notification/NotificationPage";
+import ChecklistList from "@/components/checklist/ChecklistList";
+import ChecklistDetail from "@/components/checklist/ChecklistDetail";
+import ChecklistForm from "@/components/checklist/ChecklistForm";
 import ErrorBoundary from "@/components/ErrorBoundary";
 
 function App() {
@@ -31,6 +34,9 @@ function App() {
           <Route path="/import" element={<ImportWizard />} />
           <Route path="/export" element={<ExportPage />} />
           <Route path="/notifications" element={<NotificationPage />} />
+          <Route path="/checklists" element={<ChecklistList />} />
+          <Route path="/checklists/new" element={<ChecklistForm />} />
+          <Route path="/checklists/:id" element={<ChecklistDetail />} />
         </Route>
       </Routes>
       </ErrorBoundary>

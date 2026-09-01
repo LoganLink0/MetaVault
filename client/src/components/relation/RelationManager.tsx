@@ -159,7 +159,19 @@ function RelationManager({ assetId }: Props) {
       ) : !relations?.length ? (
         <p className="text-sm text-muted-foreground">暂无关联</p>
       ) : (
-        <div className="space-y-1">
+        <>
+          {relations.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              {Object.entries(
+                relations.reduce((acc: Record<string, number>, r: any) => {
+                  const label = relationLabels[r.relation] ?? r.relation;
+                  acc[label] = (acc[label] || 0) + 1;
+                  return acc;
+                }, {})
+              ).map(([label, count]) => `${count} ${label}`).join(" · ")}
+            </p>
+          )}
+          <div className="space-y-1">
           {relations.map((r: any) => (
             <div
               key={r.id}
@@ -183,6 +195,7 @@ function RelationManager({ assetId }: Props) {
             </div>
           ))}
         </div>
+        </>
       )}
     </div>
   );

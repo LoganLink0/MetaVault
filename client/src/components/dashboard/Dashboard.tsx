@@ -73,7 +73,7 @@ function ReminderPanel() {
     || renewalSuggestions.length > 0;
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 h-full flex flex-col">
       {unread > 0 && (
         <button
           onClick={() => navigate("/notifications")}
@@ -161,7 +161,7 @@ function ReminderPanel() {
       )}
 
       {!hasContent && (
-        <div className="text-center py-4">
+        <div className="text-center py-4 flex-1 flex items-center justify-center">
           <p className="text-xs text-ink3">暂无提醒或建议</p>
         </div>
       )}
@@ -298,7 +298,7 @@ function Dashboard() {
         <div className="flex flex-col gap-4">
           <MiniCalendar events={calendarEvents} />
           <MonthlyExpirySummary events={calendarEvents} />
-          <div className="relative bg-pg border-[1.5px] border-ink3 rounded-lg p-3.5 min-h-[360px]">
+          <div className="relative bg-pg border-[1.5px] border-ink3 rounded-lg p-3.5 flex-1">
             <span className="absolute -top-2 left-3.5 font-mono text-[8px] tracking-[2px] text-ink2 bg-pg px-1.5">
               INSET — REMINDERS & SUGGESTIONS
             </span>
@@ -308,7 +308,7 @@ function Dashboard() {
 
         {/* Right column: Gantt timeline */}
         <div>
-          <GanttTimeline assets={assets ?? []} />
+          <GanttTimeline assets={assets ?? []} onBarClick={(id) => navigate(`/assets/${id}`)} />
         </div>
       </div>
     </div>

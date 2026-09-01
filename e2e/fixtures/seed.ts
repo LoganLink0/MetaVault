@@ -50,3 +50,17 @@ export async function createRelation(
   if (!res.ok) throw new Error(`Create relation failed: ${res.status}`);
   return res.json();
 }
+
+export async function createChecklist(data: {
+  title: string;
+  scenario: string;
+  items?: { content: string; asset_id?: string }[];
+}) {
+  const res = await fetch(`${BASE}/checklists`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Create checklist failed: ${res.status}`);
+  return res.json();
+}

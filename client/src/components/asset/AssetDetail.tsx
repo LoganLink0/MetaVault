@@ -26,7 +26,7 @@ const typeBadgeVariant: Record<AssetType, "physical" | "digital" | "subscription
 };
 
 const statusBadgeStyles: Record<AssetStatus, string> = {
-  active: "bg-[#4a9e6e]/10 text-[#4a9e6e] dark:bg-[#4a9e6e]/20",
+  active: "bg-[#4a9e6e]/10 text-[#4a9e6e]",
   idle: "bg-sub08 text-sub",
   expired: "bg-phy08 text-wrn",
   disposed: "bg-ink4/50 text-ink2",
@@ -163,6 +163,24 @@ function AssetDetail() {
               {pExt.source && <div><span className="text-muted-foreground">资产来源：</span>{sourceLabels[pExt.source] ?? pExt.source}</div>}
               {pExt.warranty_expiry && <div><span className="text-muted-foreground">保修到期：</span>{pExt.warranty_expiry}</div>}
               {pExt.serial_number && <div><span className="text-muted-foreground">序列号：</span><span className="font-mono">{pExt.serial_number}</span></div>}
+              {pExt.current_value != null && (
+                <div>
+                  <span className="text-muted-foreground">当前估值：</span>
+                  <span className="font-mono">¥{Number(pExt.current_value).toLocaleString()}</span>
+                </div>
+              )}
+              {pExt.current_value != null && asset.purchase_price != null && asset.purchase_price > 0 && (
+                <div className="md:col-span-2">
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 h-2 rounded-full bg-ink4">
+                      <div className="h-2 rounded-full bg-phy transition-all" style={{ width: `${Math.min(100, (Number(pExt.current_value) / Number(asset.purchase_price)) * 100)}%` }} />
+                    </div>
+                    <span className="text-xs font-mono text-muted-foreground whitespace-nowrap">
+                      残值 {Math.round((Number(pExt.current_value) / Number(asset.purchase_price)) * 100)}%
+                    </span>
+                  </div>
+                </div>
+              )}
             </>
           )}
           {dExt && (

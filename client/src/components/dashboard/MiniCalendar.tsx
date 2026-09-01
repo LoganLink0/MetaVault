@@ -9,6 +9,11 @@ const TYPE_DOT_COLORS: Record<string, string> = {
   subscription: "#D4A843",
 };
 
+interface CalendarEvent {
+  date: string;
+  type: string;
+}
+
 interface MiniCalendarProps {
   events?: CalendarEvent[];
   onDateSelect?: (date: string) => void;
