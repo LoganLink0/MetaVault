@@ -1,9 +1,16 @@
 import { test, expect } from "../fixtures/test-fixtures.js";
 import { createChecklist, scanNotifications } from "../fixtures/seed.js";
 
+// 本地日期（不能用 toISOString——UTC 会让 UTC+8 早上 8 点前的"明天"算成"今天"）
+function daysLaterStr(n: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + n);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 test.describe("清单到期提醒", () => {
   test("到期清单扫描后生成提醒并跳转", async ({ page }) => {
-    const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+    const tomorrow = daysLaterStr(1);
     await createChecklist({
       title: "到期提醒清单",
       scenario: "business_trip",

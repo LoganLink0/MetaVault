@@ -151,7 +151,7 @@ function AssetForm() {
   );
 
   function validateForm(f: AssetInput): string | null {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}-${String(new Date().getDate()).padStart(2, "0")}`;
     if (f.purchase_date && f.purchase_date > today) return "获取日期不能超过今天";
     const ext = f.ext as Record<string, unknown>;
     if (f.type === "physical" && ext) {
