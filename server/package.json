@@ -10,12 +10,13 @@
   "dependencies": {
     "better-sqlite3": "^11",
     "cors": "^2",
+    "dotenv": "^16",
     "express": "^5",
+    "jszip": "^3.10.1",
     "multer": "^1",
     "uuid": "^10",
-    "xlsx": "^0.18",
     "web-push": "^3.6.7",
-    "dotenv": "^16"
+    "xlsx": "^0.18"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7",
@@ -23,8 +24,8 @@
     "@types/express": "^5",
     "@types/multer": "^1",
     "@types/uuid": "^10",
+    "@types/web-push": "^3",
     "tsx": "^4",
-    "typescript": "~5.8.0",
-    "@types/web-push": "^3"
+    "typescript": "~5.8.0"
   }
 }
