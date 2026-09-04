@@ -1,4 +1,4 @@
-# MetaVault 技术设计 v0.6
+# MetaVault 技术设计 v0.8
 
 ## 1. 数据库设计
 
@@ -404,7 +404,7 @@ client/src/
 | `/api/notifications/subscribe` | DELETE | 删除推送订阅 |
 | `/api/import/parse` | POST | 上传+解析预览 |
 | `/api/import/execute` | POST | 确认导入 |
-| `/api/export/assets` | GET | 导出资产Excel |
+| `/api/export/assets` | GET | 导出资产Excel（v0.8 起含使用次数/最近使用列，仅报表） |
 | `/api/export/suppliers` | GET | 导出供应商Excel |
 | `/api/export/obsidian` | GET | v0.7：导出 Obsidian Vault ZIP（每资产一个 md） |
 | `/api/import/obsidian` | POST | v0.7：导入 Obsidian 笔记（多文件 upsert，dry_run 预览） |
@@ -429,6 +429,7 @@ client/src/
 | `/api/assets/:id/screenshot` | POST | 上传订阅截图 |
 | `/api/assets/ocr` | POST | OCR 识别订阅截图 |
 | `/api/dashboard/second-consumption` | GET | 第三期：二次消费率 + 吃灰榜（见 3.2.1） |
+| `/api/dashboard/monthly-review` | GET | v0.8：月度回顾（?month=YYYY-MM 缺省本月） |
 | `/api/assets?sort=cpu` | GET | 第二期：按单次使用成本排序（见 3.2.1） |
 
 #### 3.2.1 二次消费功能规格（v0.6）
@@ -515,9 +516,9 @@ client/src/
 
 ### 5.2 Obsidian 导入（v0.7）
 
-`POST /api/import/obsidian`（multipart，多文件上限 200、单文件 ≤2MB）：解析 Obsidian Markdown 笔记的 YAML frontmatter 为资产。`dry_run=true` 仅解析返回预览不写库。
+`POST /api/import/obsidian`（multipart，多文件上限 200、单文件 ≤2MB）：解析 Obsidian Markdown 笔记的 YAML frontmatter 为资产。`dry_run=true` 仅解析返回预览不写库。v0.8 起回读正文「## 使用记录」区块（格式 `- YYYY-MM-DD | Nmin或- | 备注`，备注可含 `|`，取最后段），事件先过与 API 记使用同一套校验（真实日期/禁未来/时长 1-1440/备注≤500），非法行跳过并在 detail 计 `skipped_events`，绝不入事务；其余按（资产+日期+时长+备注）去重插入（source=backfill，不触碰 last_access），保留导入期间新产生的记录，保证幂等。**口径说明：** 恢复（空库）场景全部事件归为 backfill，原 quick/checklist 来源标记丢失；disposed/expired 资产的历史事件照常导入（备份优先，与 API 记新使用的 400 守卫是两回事）。
 
-**frontmatter 格式（扁平键，与 Obsidian Properties 面板兼容）：** 基础字段 `id/name/type/category/status/tags(inline array)/purchase_date/purchase_price/currency/supplier/notes` + 类型扩展字段扁平展开（physical: model/quantity/unit/location/usage/owner/source/warranty_expiry/serial_number/current_value/condition 等；digital: platform/account/access_url/expiry_date；subscription: billing_cycle/amount/next_billing_date/auto_renew/usage_frequency/trial_end 等）。`usage_stats`/截图等运行态数据不导出不回读；**正文（body）不回读**。
+**frontmatter 格式（扁平键，与 Obsidian Properties 面板兼容）：** 基础字段 `id/name/type/category/status/tags(inline array)/purchase_date/purchase_price/currency/supplier/notes` + 类型扩展字段扁平展开（physical: model/quantity/unit/location/usage/owner/source/warranty_expiry/serial_number/current_value/condition 等；digital: platform/account/access_url/expiry_date；subscription: billing_cycle/amount/next_billing_date/auto_renew/usage_frequency/trial_end 等）。`usage_stats`/截图等运行态数据不导出不回读；正文仅「## 使用记录」区块回读（v0.8），其余不回读。frontmatter 另有派生键 `usage_count`/`last_used`（供 Obsidian Dataview 查询，导入时忽略）。
 
 **upsert 语义：** frontmatter.id 为合法 UUID 且库中存在 → 更新该资产；否则新建（id 合法则沿用，保持往返稳定）。supplier 按**名字精确匹配**解析，匹配不到置空。导入幂等：重复导入同一批文件不产生重复资产。
 
@@ -525,7 +526,7 @@ client/src/
 
 ### 5.3 Obsidian 导出（v0.7）
 
-`GET /api/export/obsidian`：返回 ZIP（jszip），内含 `MetaVault/` 文件夹，每资产一个 `.md`：frontmatter 由基础+扩展字段扁平序列化（特殊字符双引号转义），正文含备注与"## 关联"wikilink 列表（`[[资产名]] (关系类型)`，仅展示不回读）。重名文件追加 ` (id前8位)`。与 5.2 构成往返闭环。
+`GET /api/export/obsidian`：返回 ZIP（jszip），内含 `MetaVault/` 文件夹，每资产一个 `.md`：frontmatter 由基础+扩展字段扁平序列化（特殊字符双引号转义）+ 派生键 `usage_count`/`last_used`，正文含备注、"## 关联"wikilink 列表与"## 使用记录"清单（`- YYYY-MM-DD | Nmin或- | 备注`，回读见 5.2）。重名文件追加 ` (id前8位)`。与 5.2 构成含使用历史的往返闭环。
 
 ---
 
