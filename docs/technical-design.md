@@ -1,4 +1,4 @@
-# MetaVault 技术设计 v0.5
+# MetaVault 技术设计 v0.6
 
 ## 1. 数据库设计
 
@@ -8,6 +8,7 @@
 - 关联关系独立表，支持双向查询
 - 供应商独立表，与资产通过外键关联
 - 提醒独立表，支持批量扫描
+- 使用事件独立表（usage_events），一次使用一行，不在资产表上加计数列——计数永远实时聚合，避免双写不一致
 
 ### 1.2 ER关系
 
@@ -188,6 +189,7 @@ CREATE TABLE IF NOT EXISTS checklists (
   status      TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','completed','archived')),
   due_date    TEXT,
   notes       TEXT,
+  kind        TEXT NOT NULL DEFAULT 'normal' CHECK(kind IN ('normal','wake_up')),  -- v0.6 第四期：唤醒计划机器标记
   created_at  TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -195,6 +197,8 @@ CREATE TABLE IF NOT EXISTS checklists (
 CREATE INDEX IF NOT EXISTS idx_checklists_scenario ON checklists(scenario);
 CREATE INDEX IF NOT EXISTS idx_checklists_status ON checklists(status);
 ```
+
+> **kind 列迁移：** 旧库无此列，`init.ts` 启动时用 `PRAGMA table_info(checklists)` 检测，缺失则 `ALTER TABLE checklists ADD COLUMN kind TEXT NOT NULL DEFAULT 'normal'`（SQLite 加带默认值的列不需要重建表）。
 
 #### checklist_items（清单项表）— 已实现
 
@@ -215,6 +219,30 @@ CREATE INDEX IF NOT EXISTS idx_checklist_items_asset ON checklist_items(asset_id
 ```
 
 **清单模块说明：** 按场景（出差/旅行/日常检查/搬家/自定义）创建清单，可基于场景模板 + 用户持有的资产自动生成清单项（asset_id 关联资产，资产删除时置空保留条目）。状态流转：active → completed（整体标记完成时所有条目自动勾选）/ archived（归档，不再出现在默认列表）。
+
+#### usage_events（使用日志表）— v0.6 新增
+
+```sql
+CREATE TABLE IF NOT EXISTS usage_events (
+  id               TEXT PRIMARY KEY,
+  asset_id         TEXT NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+  used_at          TEXT NOT NULL,             -- 本地日期 YYYY-MM-DD，允许补录过去，禁止未来
+  duration_minutes INTEGER CHECK(duration_minutes IS NULL OR duration_minutes BETWEEN 1 AND 1440),
+  note             TEXT,
+  source           TEXT NOT NULL DEFAULT 'quick' CHECK(source IN ('quick','backfill','checklist')),
+  created_at       TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_usage_events_asset ON usage_events(asset_id, used_at);
+```
+
+**设计决策：**
+- **一次使用一行，无 count 列。** 计数用 `COUNT(*)` 实时聚合，杜绝"计数列与明细不一致"的双写问题；单用户 SQLite 场景下性能无忧（个人资产量级 < 万条）
+- **`used_at` 日期口径：** 统一存本地时区 `YYYY-MM-DD`（不含时刻），"今天"取服务器本地日期（禁止沿用 `toISOString()`——UTC 会在中国时区早上 8 点前把"今天"记成昨天）；全链路日期格式统一后字符串比较即日期比较，吃灰榜 `MAX(used_at)` 排序不乱。格式与"禁未来"由校验层挡（见 3.2.1），**不能依赖 CHECK 约束**——TEXT 列写入脏格式或违反 CHECK 在 better-sqlite3 抛 SqliteError 会走 errorHandler 变 500，且表非 STRICT 时 `"abc"` 写入 INTEGER 列不会报错而是存成 TEXT
+- **source 枚举一次性收全**（含第四期才用到的 `checklist`），避免 SQLite 带 CHECK 约束的列后期改枚举要重建表
+- **不回填历史。** 旧"标记已使用"写入的 `ext.usage_stats.last_access` 不换算成事件，历史不可考，从上线起记录
+- **last_access 同步规则：** 只有"记今天"（quick）才刷新 digital 资产 `ext.usage_stats.last_access`（完整 ISO、只前进不回退）并 dismiss usage_stagnation 通知——`last_access` 是停滞扫描的活跃度通道而非历史档案，补录过去日期若合成旧时间戳写入会立即触发停滞提醒（第 5 期起停滞去重含已 dismissed、停滞窗口内不复活；dismiss 保留为手动清除入口）
+- **disposed/expired 资产拒绝记新事件（400）**，历史事件保留
 
 ---
 
@@ -378,6 +406,8 @@ client/src/
 | `/api/import/execute` | POST | 确认导入 |
 | `/api/export/assets` | GET | 导出资产Excel |
 | `/api/export/suppliers` | GET | 导出供应商Excel |
+| `/api/export/obsidian` | GET | v0.7：导出 Obsidian Vault ZIP（每资产一个 md） |
+| `/api/import/obsidian` | POST | v0.7：导入 Obsidian 笔记（多文件 upsert，dry_run 预览） |
 | `/api/dashboard/overview` | GET | 总览统计 |
 | `/api/dashboard/subscriptions` | GET | 订阅费用 |
 | `/api/dashboard/health` | GET | 健康度 |
@@ -391,9 +421,40 @@ client/src/
 | `/api/checklists/:id/items/:itemId` | DELETE | 删除清单项 |
 | `/api/checklists/:id/complete` | PATCH | 整体标记完成（所有条目自动勾选） |
 | `/api/checklists/:id/archive` | PATCH | 归档清单（status → archived） |
-| `/api/assets/:id/usage` | PATCH | 标记数字资产已使用 |
+| `/api/assets/:id/usage` | PATCH | 标记已使用（v0.6 起放开三类资产，内部转发为记一条今天的事件，兼容别名，见 3.2.1） |
+| `/api/assets/:id/usage-events` | POST/GET | 记一条使用（used_at 默认本地今天，禁未来）/ 历史（倒序 + 总数，limit/offset 分页） |
+| `/api/assets/:id/usage-events/bulk` | POST | 批量补录 `{ events: [{used_at, duration_minutes?, note?}] }`，1–200 条、日期可不同，单事务写入 |
+| `/api/usage-events/:id` | DELETE | 删除误记的使用记录 |
+| `/api/assets/:id/wake-up` | POST | 第四期：安排使用（解析/创建唤醒清单 + 追加条目 + 去重，见 3.2.1） |
 | `/api/assets/:id/screenshot` | POST | 上传订阅截图 |
 | `/api/assets/ocr` | POST | OCR 识别订阅截图 |
+| `/api/dashboard/second-consumption` | GET | 第三期：二次消费率 + 吃灰榜（见 3.2.1） |
+| `/api/assets?sort=cpu` | GET | 第二期：按单次使用成本排序（见 3.2.1） |
+
+#### 3.2.1 二次消费功能规格（v0.6）
+
+**校验规格（validate.ts 新增校验器，全部返回 400，绝不依赖 SQL CHECK）：**
+- `used_at`：匹配 `^\d{4}-\d{2}-\d{2}$` 且是真实日期（如拒绝 2026-02-30）且 ≤ 本地今天；缺省时服务端填本地今天
+- `duration_minutes`：整数 1–1440 或缺省
+- `note`：字符串 ≤ 500 字
+- bulk：`events` 数组长度 1–200，逐条走上述校验
+
+**PATCH `/api/assets/:id/usage` 兼容别名语义：** 放开三类资产（移除 digital-only 400）；内部转发为"记一条今天的事件（source=quick）"；返回体保持完整 Asset JSON（与现有前端 `markAssetUsed` 的返回类型约定一致）+ 200。前端统一切到 `POST /usage-events`，PATCH 仅为外部兼容保留。
+
+**记事件副作用（POST 与 PATCH 一致）：** 仅"记今天"的事件（source=quick）刷新 digital 资产 `ext.usage_stats.last_access`（完整 ISO、只前进不回退）并 dismiss 该资产未处理的 usage_stagnation 通知；补录过去日期（backfill）只写事件、不动活跃度通道。
+
+**第二期 CP/U：** 详情 `GET /api/assets/:id` 附加 `usage_count`；列表排序 `sort=cpu` 用一次 LEFT JOIN 聚合，**不做逐资产子查询**。实现形态：`SELECT a.*, COUNT(u.id) AS usage_count FROM assets a LEFT JOIN usage_events u ON u.asset_id = a.id ... GROUP BY a.id ORDER BY COUNT(u.id) ASC, a.purchase_price DESC`（与技术设计初期版本的"聚合子查询 + COALESCE"实测语义等价，以本形态为准）。口径说明：**订阅参与 cpu 排序但 UI 不展示其计数**（排序是代理指标"最少使用优先"，非严格 CP/U 降序）；CP/U 数值本身由前端用 `purchase_price / usage_count` 计算（次数为 0 显示"从未二次消费"）。
+
+**第三期仪表盘 `GET /api/dashboard/second-consumption`：** 一次请求返回 `{ rate, dust_list }`（内部 3 条 SQL）——`rate` = 近 90 天有事件的非 disposed/expired 资产数 ÷ 非 disposed/expired 资产总数（窗口 `[today-89, today]`，双端本地日期）；`dust_list` = 非 disposed/expired 按 `MAX(used_at)` 最旧排序 Top 10（无事件用 created_at 换算本地日期兜底），复合索引 `(asset_id, used_at)` 使每资产 MAX 走索引。
+
+**第四期唤醒闭环：**
+- `checklists` 表新增机器标记列 `kind TEXT NOT NULL DEFAULT 'normal'`（CHECK kind IN ('normal','wake_up')），init.ts 用 `PRAGMA table_info` 检测缺失后 `ALTER TABLE ADD COLUMN`（加列不需重建表）
+- `POST /api/assets/:id/wake-up`：找 `kind='wake_up' AND status='active'` 最早清单为宿主，无则创建（title="唤醒计划"，scenario='custom'，kind='wake_up'）；宿主内存在"未勾选且 asset_id 相同"的条目则跳过，否则追加条目；返回清单 id
+- **自动记使用契约：** 仅 `kind='wake_up'` 清单条目触发；toggle 路由先读旧值，仅 0→1 跳变时写一条 `source='checklist'` 事件，1→0 不回删；`PATCH /:id/complete` 改为逐条走同一 0→1 判定（废弃一条 SQL 批量置 1 的写法），保证"整体标记完成"同样逐条记使用；普通场景清单（kind='normal'）勾选不记使用
+- 前端记使用类 mutation 的 React Query 失效清单：`['asset', id]`、`['assets']`、`['dashboard']`、`['notifications']`、使用历史 key——漏掉 dashboard 会出现"记了使用仪表盘不动"
+
+**第五期订阅判定守卫：** "近 60 天 0 事件 → rarely"仅当 `assets.created_at` 距今 ≥ 60 天才适用（上线初期的新订阅不误判）；"无事件数据回退手动 usage_frequency"中的"无数据"定义为**该资产从未记录过任何事件**（而非窗口内为 0）；顺带修复 scanner 去重缺陷——现 exists 查询带 `is_dismissed=0`，被 dismiss 的提醒次日换 trigger_date 会重新生成，五期把 stagnation 去重改为"同资产+同类型+同一停滞窗口内不重生"。
+- `/api/test/reset` 端点显式清空 `usage_events`（现靠 assets CASCADE 兜底，显式更稳）
 
 **安全：** 全部使用参数化查询防 SQL 注入。POST/PUT 端点通过 `middleware/validate.ts` 校验必填字段、枚举值、UUID 格式等，非法输入返回 400。文件路径用 `path.resolve + startsWith` 防路径穿越。
 
@@ -416,7 +477,7 @@ client/src/
 
 ### 4.1 扫描策略
 
-应用启动时 + 每小时定时扫描一次，检查以下条件：
+应用启动时 + 每小时定时扫描一次。**扫描范围仅 `status='active'` 的资产**（idle/expired/disposed 不产生提醒，含停滞与取消建议）。检查以下条件：
 
 | 提醒类型 | 扫描逻辑 |
 |---------|---------|
@@ -424,15 +485,23 @@ client/src/
 | subscription_renewal | subscription.ext → next_billing_date - 7天 <= 今天 |
 | digital_expiry | digital.ext → expiry_date - 30天 <= 今天 |
 | trial_expiry | subscription.ext → trial_end - 3天 <= 今天 |
-| usage_stagnation | digital.ext → usage_stats.last_access + 30天 <= 今天 |
+| usage_stagnation | v0.6：三类资产通用，以使用事件为准——最近活跃 = MAX(usage_events.used_at) ?? digital 旧 last_access ?? purchase_date ?? created_at，+30天 <= 今天；到手（purchase_date ?? created_at）未满 30 天不判 |
+| cancellation_suggestion | v0.6：近 60 天事件数=0 且到手满 60 天 → rarely；从未记录事件且未满 60 天 → 回退手动 usage_frequency；+ next_billing_date - 7天 <= 今天 |
 | deprecation | physical.ext → current_value <= purchase_price * 0.1 |
-| cancellation_suggestion | subscription.ext → usage_frequency="rarely" + next_billing_date - 7天 <= 今天 |
 | replacement_suggestion | physical.ext → current_value <= purchase_price * 0.1 + 有收藏的 physical/mixed 供应商 |
 | checklist_due | checklists → status='active' 且 due_date - 3天 <= 今天 |
 
 ### 4.2 去重
 
 同一资产 + 同一提醒类型 + 同一触发日期，只生成一条提醒。已dismiss的不重复生成。
+
+### 4.3 v0.6 与使用日志的关系（已实现）
+
+- **第一~四期：** `usage_stagnation` 扫描仍读 digital `ext.usage_stats.last_access`；"记今天"的使用事件写入时同步刷新该字段，两条数据通道并存
+- **第五期（当前）：** `usage_stagnation` 升级为读 `usage_events`（覆盖三类资产）；`cancellation_suggestion` 的 rarely 判定优先用真实事件统计（近 60 天 0 次且到手满 60 天），从未记录事件且未满 60 天时回退手动 `usage_frequency`
+- **去重修复：** `usage_stagnation` 的去重改为"同资产 + 同类型 + 停滞窗口（30 天）内不重生"（含已 dismissed 的），修复 dismiss 后换 trigger_date 当天重生的循环
+- **导入场景：** 无 purchase_date 的导入资产自导入日（created_at）起 30 天后才开始停滞提醒（到手守卫兜底到 created_at）
+- "记今天"的事件仍 dismiss 该资产未处理的 usage_stagnation 通知
 
 ---
 
@@ -444,17 +513,19 @@ client/src/
 选择文件 → 解析 → 预览前10行 → 用户映射列 → 确认 → 批量插入 → 显示结果
 ```
 
-### 5.2 Notion导入预设
+### 5.2 Obsidian 导入（v0.7）
 
-Notion导出CSV的常见列名自动映射：
-- Name → name
-- Type → category
-- Status → status
-- Price → purchase_price
-- Date → purchase_date
-- URL → ext.access_url
+`POST /api/import/obsidian`（multipart，多文件上限 200、单文件 ≤2MB）：解析 Obsidian Markdown 笔记的 YAML frontmatter 为资产。`dry_run=true` 仅解析返回预览不写库。
 
-用户可在此基础上调整映射。
+**frontmatter 格式（扁平键，与 Obsidian Properties 面板兼容）：** 基础字段 `id/name/type/category/status/tags(inline array)/purchase_date/purchase_price/currency/supplier/notes` + 类型扩展字段扁平展开（physical: model/quantity/unit/location/usage/owner/source/warranty_expiry/serial_number/current_value/condition 等；digital: platform/account/access_url/expiry_date；subscription: billing_cycle/amount/next_billing_date/auto_renew/usage_frequency/trial_end 等）。`usage_stats`/截图等运行态数据不导出不回读；**正文（body）不回读**。
+
+**upsert 语义：** frontmatter.id 为合法 UUID 且库中存在 → 更新该资产；否则新建（id 合法则沿用，保持往返稳定）。supplier 按**名字精确匹配**解析，匹配不到置空。导入幂等：重复导入同一批文件不产生重复资产。
+
+**解析器：** 服务端手写宽容解析（`key: value` + 双引号字符串 + inline array + 数字/布尔推断），只覆盖导出格式与常见手写变体，不引入 YAML 依赖。
+
+### 5.3 Obsidian 导出（v0.7）
+
+`GET /api/export/obsidian`：返回 ZIP（jszip），内含 `MetaVault/` 文件夹，每资产一个 `.md`：frontmatter 由基础+扩展字段扁平序列化（特殊字符双引号转义），正文含备注与"## 关联"wikilink 列表（`[[资产名]] (关系类型)`，仅展示不回读）。重名文件追加 ` (id前8位)`。与 5.2 构成往返闭环。
 
 ---
 
@@ -489,6 +560,12 @@ e2e/
     ├── notifications.spec.ts  # 通知查看 / 忽略 / 批量已读 / 批量忽略（4 个测试）
     ├── relation.spec.ts       # 关联添加 / 删除 / 影响提示（3 个测试）
     ├── ocr.spec.ts            # 订阅截图上传
+    ├── usage-log.spec.ts      # 使用日志（记录/补录/删除/校验/别名/分页，10 个测试）
+    ├── cpu.spec.ts            # 单次使用成本（详情展示/隐藏/排序含平局，3 个测试）
+    ├── dashboard-sc.spec.ts   # 仪表盘二次消费面板（隐藏/口径/窗口边界，3 个测试）
+    ├── wake-up.spec.ts        # 唤醒闭环（安排/去重/自动记使用/状态守卫/联动，8 个测试）
+    ├── scanner-v6.spec.ts     # 提醒扫描 v0.6（三类停滞/豁免/不重生/取消建议，7 个测试）
+    └── obsidian.spec.ts       # Obsidian 导入导出（导出/往返/幂等/dry_run/坏文件）
     └── mobile.spec.ts         # 移动端底部导航
 ```
 
