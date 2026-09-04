@@ -37,6 +37,7 @@ export function useCreateAsset() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["assets"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
+      qc.invalidateQueries({ queryKey: ["relations", "graph"] });
     },
   });
 }
@@ -50,6 +51,7 @@ export function useUpdateAsset() {
       qc.invalidateQueries({ queryKey: ["assets", id] });
       // 状态改为 disposed/expired 会改变二次消费面板口径，一并失效
       qc.invalidateQueries({ queryKey: ["dashboard"] });
+      qc.invalidateQueries({ queryKey: ["relations", "graph"] });
     },
   });
 }

@@ -5,6 +5,19 @@ import { validateRelationInput } from "../middleware/validate.js";
 
 const router: RouterType = Router();
 
+// GET /api/relations/graph — 全局关联图（v0.9 关联领地）
+// 必须声明在 GET /:assetId 之前，否则 "graph" 会被当作资产 id 静默返回空数组
+router.get("/graph", async (_req: Request, res: Response) => {
+  const db = await getDb();
+  const nodes = db.prepare(
+    "SELECT id, name, type, status FROM assets ORDER BY type, name"
+  ).all();
+  const edges = db.prepare(
+    "SELECT id, source_id, target_id, relation FROM asset_relations ORDER BY created_at"
+  ).all();
+  res.json({ nodes, edges });
+});
+
 // GET /api/relations/:assetId — 获取某资产的所有关联
 router.get("/:assetId", async (req: Request, res: Response) => {
   const db = await getDb();

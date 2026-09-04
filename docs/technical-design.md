@@ -1,4 +1,4 @@
-# MetaVault 技术设计 v0.8
+# MetaVault 技术设计 v0.9
 
 ## 1. 数据库设计
 
@@ -304,7 +304,9 @@ client/src/
 │   ├── notification/
 │   │   └── NotificationPage.tsx # 通知页面（未读/全部+批量操作）
 │   ├── relation/
-│   │   └── RelationManager.tsx  # 关联管理（搜索+添加+移除）
+│   │   ├── RelationManager.tsx  # 关联管理（搜索+添加+移除）
+│   │   └── RelationsGraph.tsx   # 关联领地页（v0.9：手绘 SVG 环形图，无图库依赖）
+│   │                            #   已知取舍：N>30 或长名时环外标签可能重叠，个人量级可接受；后续可做标签显隐阈值/双环布局
 │   ├── ErrorBoundary.tsx        # 全局错误边界
 ├── types/
 │   ├── asset.ts                # 资产类型定义
@@ -331,6 +333,7 @@ client/src/
 /checklists/new       → ChecklistForm        清单创建（选场景后按模板+持有资产生成清单项）
 /checklists/:id       → ChecklistDetailPage  清单详情（勾选/进度/添加项）
 /checklists/:id/edit  → ChecklistForm        清单编辑（基本信息：标题/截止日/备注）
+/relations            → RelationsGraph       关联领地（v0.9：SVG 环形关联图，点击节点跳详情）
 ```
 
 资产列表 URL 参数：`type`（physical/digital/subscription）、`status`（active/idle/expired/disposed）、`sort`（name/price/created_at/updated_at）、`q`（搜索）
@@ -392,6 +395,7 @@ client/src/
 | `/api/suppliers` | GET | 列表（支持 type/favorite 过滤） |
 | `/api/suppliers/:id` | GET/PUT/DELETE | 详情/更新/删除 |
 | `/api/suppliers/:id/favorite` | PATCH | 切换收藏 |
+| `/api/relations/graph` | GET | v0.9：全局关联图（nodes=全部资产 id/name/type/status，edges=全部关联） |
 | `/api/relations/:assetId` | GET | 获取关联 |
 | `/api/relations` | POST | 添加关联 |
 | `/api/relations/:id` | DELETE | 删除关联 |
@@ -566,7 +570,8 @@ e2e/
     ├── dashboard-sc.spec.ts   # 仪表盘二次消费面板（隐藏/口径/窗口边界，3 个测试）
     ├── wake-up.spec.ts        # 唤醒闭环（安排/去重/自动记使用/状态守卫/联动，8 个测试）
     ├── scanner-v6.spec.ts     # 提醒扫描 v0.6（三类停滞/豁免/不重生/取消建议，7 个测试）
-    └── obsidian.spec.ts       # Obsidian 导入导出（导出/往返/幂等/dry_run/坏文件）
+    ├── obsidian.spec.ts       # Obsidian 导入导出（导出/往返/幂等/dry_run/坏文件）
+    └── relations-graph.spec.ts # 关联领地（节点/边渲染/孤儿提示/点击跳转/空态）
     └── mobile.spec.ts         # 移动端底部导航
 ```
 

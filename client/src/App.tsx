@@ -19,6 +19,7 @@ const NotificationPage = lazy(() => import("@/components/notification/Notificati
 const ChecklistList = lazy(() => import("@/components/checklist/ChecklistList"));
 const ChecklistDetail = lazy(() => import("@/components/checklist/ChecklistDetail"));
 const ChecklistForm = lazy(() => import("@/components/checklist/ChecklistForm"));
+const RelationsGraph = lazy(() => import("@/components/relation/RelationsGraph"));
 
 function RouteFallback() {
   return <div className="py-12 text-center text-sm text-ink3">加载中...</div>;
@@ -43,6 +44,7 @@ function App() {
               <Route path="/import" element={<ImportWizard />} />
               <Route path="/export" element={<ExportPage />} />
               <Route path="/notifications" element={<NotificationPage />} />
+              <Route path="/relations" element={<RelationsGraph />} />
               <Route path="/checklists" element={<ChecklistList />} />
               <Route path="/checklists/new" element={<ChecklistForm />} />
               <Route path="/checklists/:id" element={<ChecklistDetail />} />

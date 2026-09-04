@@ -1,5 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { fetchRelations, addRelation, removeRelation } from "@/lib/api-relations";
+import { fetchRelations, addRelation, removeRelation, fetchRelationGraph } from "@/lib/api-relations";
+
+export function useRelationGraph() {
+  return useQuery({
+    queryKey: ["relations", "graph"],
+    queryFn: fetchRelationGraph,
+  });
+}
 
 export function useRelations(assetId: string) {
   return useQuery({
@@ -14,7 +21,8 @@ export function useAddRelation() {
   return useMutation({
     mutationFn: ({ sourceId, targetId, relation }: { sourceId: string; targetId: string; relation: string }) =>
       addRelation(sourceId, targetId, relation),
-    onSuccess: (_data, { sourceId }) => qc.invalidateQueries({ queryKey: ["relations", sourceId] }),
+    // 失效整个 relations 前缀：详情列表 + 关联领地图（["relations","graph"]）一并刷新
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["relations"] }),
   });
 }
 

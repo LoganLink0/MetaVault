@@ -4,6 +4,7 @@ import {
   Package,
   Building2,
   ClipboardCheck,
+  Waypoints,
   Upload,
   Download,
 } from "lucide-react";
@@ -12,6 +13,7 @@ import { cn } from "@/lib/utils";
 const navItems = [
   { to: "/", label: "仪表盘", icon: LayoutDashboard },
   { to: "/assets", label: "资产管理", icon: Package },
+  { to: "/relations", label: "关联领地", icon: Waypoints },
   { to: "/suppliers", label: "优秀供应商", icon: Building2 },
   { to: "/checklists", label: "检查清单", icon: ClipboardCheck },
   { to: "/import", label: "数据导入", icon: Upload },
