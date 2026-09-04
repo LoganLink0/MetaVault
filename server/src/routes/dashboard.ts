@@ -1,8 +1,53 @@
 import { Router, Request, Response } from "express";
 import type { Router as RouterType } from "express";
 import { getDb } from "../db/init.js";
+import { localDateStr } from "../lib/date.js";
 
 const router: RouterType = Router();
+
+// GET /api/dashboard/second-consumption — 二次消费率 + 吃灰榜（v0.6，分子分母均排除 disposed/expired）
+router.get("/second-consumption", async (_req: Request, res: Response) => {
+  const db = await getDb();
+  const today = localDateStr();
+  const ninetyDaysAgo = localDateStr(new Date(Date.now() - 90 * 24 * 60 * 60 * 1000));
+
+  const total = (db.prepare(
+    "SELECT COUNT(*) AS c FROM assets WHERE status NOT IN ('disposed','expired')"
+  ).get() as { c: number }).c;
+
+  const consumed = (db.prepare(
+    `SELECT COUNT(DISTINCT u.asset_id) AS c
+     FROM usage_events u
+     JOIN assets a ON a.id = u.asset_id AND a.status NOT IN ('disposed','expired')
+     WHERE u.used_at > ? AND u.used_at <= ?`
+  ).get(ninetyDaysAgo, today) as { c: number }).c;
+
+  const dustRows = db.prepare(
+    `SELECT a.id, a.name, a.type, a.created_at, MAX(u.used_at) AS last_used
+     FROM assets a
+     LEFT JOIN usage_events u ON u.asset_id = a.id
+     WHERE a.status NOT IN ('disposed','expired')
+     GROUP BY a.id
+     ORDER BY COALESCE(MAX(u.used_at), a.created_at) ASC
+     LIMIT 10`
+  ).all() as Array<{ id: string; name: string; type: string; created_at: string; last_used: string | null }>;
+
+  const todayMidnight = new Date(`${today}T00:00:00`).getTime();
+  const dust_list = dustRows.map((row) => {
+    // 兜底用本地日期口径换算（created_at 是 UTC 时间戳，直接 slice(0,10) 会差一天）
+    const base = row.last_used ?? localDateStr(new Date(row.created_at));
+    const days = Math.round((todayMidnight - new Date(`${base}T00:00:00`).getTime()) / 86400000);
+    return { id: row.id, name: row.name, type: row.type, last_used: base, days_since: days, never_used: row.last_used == null };
+  });
+
+  res.json({
+    window_days: 90,
+    consumed,
+    total,
+    rate: total > 0 ? Math.round((consumed / total) * 100) : 0,
+    dust_list,
+  });
+});
 
 // GET /api/dashboard/overview — 总览统计
 router.get("/overview", async (_req: Request, res: Response) => {

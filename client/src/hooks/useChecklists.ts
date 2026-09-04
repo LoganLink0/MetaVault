@@ -88,7 +88,17 @@ export function useToggleChecklistItem() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ checklistId, itemId }: { checklistId: string; itemId: string }) => toggleChecklistItem(checklistId, itemId),
-    onSuccess: (_data, vars) => qc.invalidateQueries({ queryKey: ["checklists", vars.checklistId] }),
+    onSuccess: (data, vars) => {
+      qc.invalidateQueries({ queryKey: ["checklists", vars.checklistId] });
+      qc.invalidateQueries({ queryKey: ["checklists"] });
+      // 唤醒清单勾选会自动记使用 → 资产计数与二次消费面板联动
+      if (data?.usage_logged && data.asset_id) {
+        qc.invalidateQueries({ queryKey: ["assets"] });
+        qc.invalidateQueries({ queryKey: ["assets", data.asset_id] });
+        qc.invalidateQueries({ queryKey: ["dashboard"] });
+        qc.invalidateQueries({ queryKey: ["notifications"] });
+      }
+    },
   });
 }
 
@@ -107,6 +117,10 @@ export function useCompleteChecklist() {
     onSuccess: (_data, id) => {
       qc.invalidateQueries({ queryKey: ["checklists"] });
       qc.invalidateQueries({ queryKey: ["checklists", id] });
+      // 唤醒清单整体完成会逐条记使用（记今天会 dismiss 停滞提醒），资产/面板/通知一并刷新
+      qc.invalidateQueries({ queryKey: ["assets"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      qc.invalidateQueries({ queryKey: ["notifications"] });
     },
   });
 }

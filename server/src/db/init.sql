@@ -89,6 +89,7 @@ CREATE TABLE IF NOT EXISTS checklists (
   status      TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','completed','archived')),
   due_date    TEXT,
   notes       TEXT,
+  kind        TEXT NOT NULL DEFAULT 'normal' CHECK(kind IN ('normal','wake_up')),
   created_at  TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -109,3 +110,16 @@ CREATE TABLE IF NOT EXISTS checklist_items (
 
 CREATE INDEX IF NOT EXISTS idx_checklist_items_checklist ON checklist_items(checklist_id);
 CREATE INDEX IF NOT EXISTS idx_checklist_items_asset ON checklist_items(asset_id);
+
+-- v0.6 使用日志：一次有意识的使用记一行（二次消费数据层）
+CREATE TABLE IF NOT EXISTS usage_events (
+  id               TEXT PRIMARY KEY,
+  asset_id         TEXT NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+  used_at          TEXT NOT NULL,
+  duration_minutes INTEGER CHECK(duration_minutes IS NULL OR duration_minutes BETWEEN 1 AND 1440),
+  note             TEXT,
+  source           TEXT NOT NULL DEFAULT 'quick' CHECK(source IN ('quick','backfill','checklist')),
+  created_at       TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_usage_events_asset ON usage_events(asset_id, used_at);

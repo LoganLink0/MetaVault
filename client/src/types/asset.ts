@@ -48,6 +48,7 @@ export interface Asset {
   supplier_id: string | null;
   notes: string | null;
   ext: PhysicalExt | DigitalExt | SubscriptionExt;
+  usage_count?: number;
   created_at: string;
   updated_at: string;
 }
@@ -71,7 +72,31 @@ export interface AssetFilters {
   status?: AssetStatus;
   category?: string;
   search?: string;
-  sort?: "name" | "price" | "created_at" | "updated_at";
+  sort?: "name" | "price" | "created_at" | "updated_at" | "cpu";
+}
+
+// v0.6 使用日志（二次消费）
+export type UsageEventSource = "quick" | "backfill" | "checklist";
+
+export interface UsageEvent {
+  id: string;
+  asset_id: string;
+  used_at: string;
+  duration_minutes: number | null;
+  note: string | null;
+  source: UsageEventSource;
+  created_at: string;
+}
+
+export interface UsageEventInput {
+  used_at?: string;
+  duration_minutes?: number;
+  note?: string;
+}
+
+export interface UsageEventList {
+  total: number;
+  events: UsageEvent[];
 }
 
 export const categoryLabels: Record<string, string> = {

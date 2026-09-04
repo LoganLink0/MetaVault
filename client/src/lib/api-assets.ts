@@ -1,5 +1,5 @@
 import { apiFetch } from "./api-client";
-import type { Asset, AssetInput, AssetFilters } from "@/types/asset";
+import type { Asset, AssetInput, AssetFilters, UsageEvent, UsageEventInput, UsageEventList } from "@/types/asset";
 
 export function fetchAssets(filters?: AssetFilters): Promise<Asset[]> {
   const params = new URLSearchParams();
@@ -35,8 +35,32 @@ export function deleteAsset(id: string): Promise<void> {
   return apiFetch(`/assets/${id}`, { method: "DELETE" });
 }
 
-export function markAssetUsed(id: string): Promise<Asset> {
-  return apiFetch<Asset>(`/assets/${id}/usage`, { method: "PATCH" });
+// v0.6 使用日志（旧 PATCH /usage 接口仅为外部兼容保留，前端不再使用）
+export function fetchUsageEvents(assetId: string, limit = 100): Promise<UsageEventList> {
+  return apiFetch<UsageEventList>(`/assets/${assetId}/usage-events?limit=${limit}`);
+}
+
+export function createUsageEvent(assetId: string, input: UsageEventInput): Promise<UsageEvent> {
+  return apiFetch<UsageEvent>(`/assets/${assetId}/usage-events`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function bulkCreateUsageEvents(assetId: string, events: UsageEventInput[]): Promise<{ count: number; events: UsageEvent[] }> {
+  return apiFetch(`/assets/${assetId}/usage-events/bulk`, {
+    method: "POST",
+    body: JSON.stringify({ events }),
+  });
+}
+
+export function deleteUsageEvent(eventId: string): Promise<void> {
+  return apiFetch(`/usage-events/${eventId}`, { method: "DELETE" });
+}
+
+// v0.6 唤醒闭环：加入"唤醒计划"清单（已存在未勾选的同资产条目时 created=false）
+export function wakeUpAsset(assetId: string): Promise<{ checklist_id: string; item_id: string; created: boolean }> {
+  return apiFetch(`/assets/${assetId}/wake-up`, { method: "POST" });
 }
 
 export async function uploadScreenshot(assetId: string, file: File): Promise<{ screenshot_url: string }> {

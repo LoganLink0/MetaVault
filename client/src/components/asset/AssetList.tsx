@@ -230,6 +230,7 @@ function AssetList() {
               <SelectItem value="created_at">最近创建</SelectItem>
               <SelectItem value="name">按名称</SelectItem>
               <SelectItem value="price">按价格</SelectItem>
+              <SelectItem value="cpu">最少使用优先</SelectItem>
             </SelectContent>
           </Select>
 
@@ -343,6 +344,9 @@ function AssetList() {
                     <Badge variant={asset.type}>{typeLabels[asset.type]}</Badge>
                     {asset.purchase_price != null && (
                       <span className="font-mono">¥{asset.purchase_price.toLocaleString()}</span>
+                    )}
+                    {asset.type !== "subscription" && asset.usage_count != null && (
+                      <span className="font-mono" data-testid="usage-count-badge">{asset.usage_count === 0 ? "从未使用" : `已用 ${asset.usage_count} 次`}</span>
                     )}
                     {asset.tags?.length > 0 && (
                       <span className="truncate">

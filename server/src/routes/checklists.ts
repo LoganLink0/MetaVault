@@ -1,9 +1,20 @@
 import { Router, Request, Response } from "express";
 import type { Router as RouterType } from "express";
+import type Database from "better-sqlite3";
 import { getDb } from "../db/init.js";
 import { validateChecklistInput, validateChecklistItemInput } from "../middleware/validate.js";
+import { logUsageEvent } from "../services/usage-log.js";
 
 const router: RouterType = Router();
+
+// 唤醒清单勾选自动记使用：仅 0→1 跳变、仅 wake_up 清单、资产未被处置/过期时生效
+function autoLogWakeUpUsage(db: Database.Database, checklistKind: string | undefined, assetId: unknown, transitionedOn: boolean): boolean {
+  if (!transitionedOn || checklistKind !== "wake_up" || typeof assetId !== "string") return false;
+  const asset = db.prepare("SELECT status FROM assets WHERE id = ?").get(assetId) as { status: string } | undefined;
+  if (!asset || asset.status === "disposed" || asset.status === "expired") return false;
+  logUsageEvent(db, assetId, {}, "checklist");
+  return true;
+}
 
 // GET /api/checklists — 列表（含统计）
 router.get("/", async (req: Request, res: Response) => {
@@ -290,13 +301,28 @@ router.patch("/:id/items/:itemId/toggle", async (req: Request, res: Response) =>
     return;
   }
 
-  const newChecked = (item as any).checked ? 0 : 1;
+  const checklist = db.prepare("SELECT kind, status FROM checklists WHERE id = ?").get(id) as
+    | { kind: string; status: string }
+    | undefined;
+  // 唤醒清单完成后/归档后不能再勾选记使用（防误触污染 usage_events）
+  if (checklist?.kind === "wake_up" && checklist.status !== "active") {
+    res.status(400).json({ error: "唤醒清单已完成或已归档，不能再勾选" });
+    return;
+  }
+
+  const wasChecked = !!(item as any).checked;
+  const newChecked = wasChecked ? 0 : 1;
   const now = new Date().toISOString();
 
-  db.prepare("UPDATE checklist_items SET checked = ?, updated_at = ? WHERE id = ?").run(newChecked, now, itemId);
-  db.prepare("UPDATE checklists SET updated_at = ? WHERE id = ?").run(now, id);
+  let usageLogged = false;
+  db.transaction(() => {
+    db.prepare("UPDATE checklist_items SET checked = ?, updated_at = ? WHERE id = ?").run(newChecked, now, itemId);
+    db.prepare("UPDATE checklists SET updated_at = ? WHERE id = ?").run(now, id);
+    // 唤醒闭环：0→1 勾选自动记一条使用；取消勾选不回删
+    usageLogged = autoLogWakeUpUsage(db, checklist?.kind, (item as any).asset_id, !wasChecked);
+  })();
 
-  res.json({ ...item, checked: !!newChecked, updated_at: now });
+  res.json({ ...item, checked: !!newChecked, updated_at: now, usage_logged: usageLogged, asset_id: (item as any).asset_id });
 });
 
 // DELETE /api/checklists/:id/items/:itemId — 删除清单项
@@ -317,6 +343,7 @@ router.delete("/:id/items/:itemId", async (req: Request, res: Response) => {
 });
 
 // PATCH /api/checklists/:id/complete — 标记清单完成
+// 唤醒清单逐条走 0→1 判定（不用一条 SQL 批量置 1），保证"整体标记完成"同样逐条记使用
 router.patch("/:id/complete", async (req: Request, res: Response) => {
   const db = await getDb();
   const { id } = req.params;
@@ -328,8 +355,19 @@ router.patch("/:id/complete", async (req: Request, res: Response) => {
   }
 
   const now = new Date().toISOString();
-  db.prepare("UPDATE checklists SET status = 'completed', updated_at = ? WHERE id = ?").run(now, id);
-  db.prepare("UPDATE checklist_items SET checked = 1, updated_at = ? WHERE checklist_id = ?").run(now, id);
+  const items = db.prepare("SELECT id, checked, asset_id FROM checklist_items WHERE checklist_id = ?").all(id) as
+    Array<{ id: string; checked: number; asset_id: string | null }>;
+
+  db.transaction(() => {
+    db.prepare("UPDATE checklists SET status = 'completed', updated_at = ? WHERE id = ?").run(now, id);
+    const update = db.prepare("UPDATE checklist_items SET checked = 1, updated_at = ? WHERE id = ?");
+    for (const item of items) {
+      if (!item.checked) {
+        update.run(now, item.id);
+        autoLogWakeUpUsage(db, checklist.kind, item.asset_id, true);
+      }
+    }
+  })();
 
   const updated = db.prepare("SELECT * FROM checklists WHERE id = ?").get(id) as Record<string, any> | undefined;
   res.json(updated);

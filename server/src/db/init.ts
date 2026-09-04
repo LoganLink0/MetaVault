@@ -45,6 +45,14 @@ function migrateNotificationsSchema(database: Database.Database): void {
   database.pragma("foreign_keys = ON");
 }
 
+// 旧库的 checklists 表没有 kind 列（v0.6 唤醒计划机器标记），
+// CREATE TABLE IF NOT EXISTS 不会更新已存在的表；缺列时 ALTER TABLE 补列（加带默认值的列不需重建表）
+function migrateChecklistsKind(database: Database.Database): void {
+  const columns = database.prepare("PRAGMA table_info(checklists)").all() as Array<{ name: string }>;
+  if (columns.length === 0 || columns.some((c) => c.name === "kind")) return;
+  database.exec("ALTER TABLE checklists ADD COLUMN kind TEXT NOT NULL DEFAULT 'normal'");
+}
+
 export async function getDb(): Promise<Database.Database> {
   if (db) return db;
 
@@ -61,6 +69,9 @@ export async function getDb(): Promise<Database.Database> {
 
   const sql = readFileSync(join(__dirname, "init.sql"), "utf-8");
   db.exec(sql);
+
+  // init.sql 之后迁移：表由 CREATE TABLE IF NOT EXISTS 保证存在
+  migrateChecklistsKind(db);
 
   return db;
 }

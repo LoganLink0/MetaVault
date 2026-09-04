@@ -21,6 +21,7 @@ export interface Checklist {
   status: ChecklistStatus;
   due_date: string | null;
   notes: string | null;
+  kind?: "normal" | "wake_up";
   total_items: number;
   completed_items: number;
   created_at: string;

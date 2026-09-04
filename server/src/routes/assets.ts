@@ -4,7 +4,8 @@ import multer from "multer";
 import path from "path";
 import { getDb } from "../db/init.js";
 import { isVisionConfigured, recognizeSubscription } from "../services/ocr-service.js";
-import { validateAssetInput } from "../middleware/validate.js";
+import { validateAssetInput, validateUsageEventInput, validateUsageEventBulkInput } from "../middleware/validate.js";
+import { logUsageEvent, logUsageEventsBulk, type UsageEventRow } from "../services/usage-log.js";
 
 const router: RouterType = Router();
 
@@ -20,39 +21,47 @@ const screenshotUpload = multer({
   },
 });
 
-// GET /api/assets — 列表（支持筛选）
+// GET /api/assets — 列表（支持筛选；v0.6 起带 usage_count，支持 sort=cpu 单次使用成本排序）
 router.get("/", async (req: Request, res: Response) => {
   const db = await getDb();
   const { asset_type, status, category, search, sort } = req.query;
 
-  let sql = "SELECT * FROM assets WHERE 1=1";
+  let sql = "SELECT a.*, COUNT(u.id) AS usage_count FROM assets a LEFT JOIN usage_events u ON u.asset_id = a.id WHERE 1=1";
   const params: unknown[] = [];
 
   if (asset_type) {
-    sql += " AND type = ?";
+    sql += " AND a.type = ?";
     params.push(asset_type);
   }
   if (status) {
-    sql += " AND status = ?";
+    sql += " AND a.status = ?";
     params.push(status);
   }
   if (category) {
-    sql += " AND category = ?";
+    sql += " AND a.category = ?";
     params.push(category);
   }
   if (search) {
-    sql += " AND (name LIKE ? OR notes LIKE ?)";
+    sql += " AND (a.name LIKE ? OR a.notes LIKE ?)";
     params.push(`%${search}%`, `%${search}%`);
   }
 
+  sql += " GROUP BY a.id";
+
   const sortWhitelist: Record<string, string> = {
-    name: "name",
-    price: "purchase_price",
-    created_at: "created_at",
-    updated_at: "updated_at",
+    name: "a.name",
+    price: "a.purchase_price",
+    created_at: "a.created_at",
+    updated_at: "a.updated_at",
   };
-  const sortColumn = sortWhitelist[sort as string] || "updated_at";
-  sql += ` ORDER BY ${sortColumn} DESC`;
+
+  if (sort === "cpu") {
+    // 最不划算排起：从未使用的最前，同次数价高的排前
+    sql += " ORDER BY COUNT(u.id) ASC, a.purchase_price DESC";
+  } else {
+    const sortColumn = sortWhitelist[sort as string] || "a.updated_at";
+    sql += ` ORDER BY ${sortColumn} DESC`;
+  }
 
   const rows = db.prepare(sql).all(...params) as Record<string, unknown>[];
   const assets = rows.map((row) => ({
@@ -64,10 +73,12 @@ router.get("/", async (req: Request, res: Response) => {
   res.json(assets);
 });
 
-// GET /api/assets/:id — 详情
+// GET /api/assets/:id — 详情（v0.6 起带 usage_count）
 router.get("/:id", async (req: Request, res: Response) => {
   const db = await getDb();
-  const row = db.prepare("SELECT * FROM assets WHERE id = ?").get(req.params.id) as Record<string, unknown> | undefined;
+  const row = db.prepare(
+    "SELECT a.*, (SELECT COUNT(*) FROM usage_events u WHERE u.asset_id = a.id) AS usage_count FROM assets a WHERE a.id = ?"
+  ).get(req.params.id) as Record<string, unknown> | undefined;
 
   if (!row) {
     res.status(404).json({ error: "Asset not found" });
@@ -159,42 +170,154 @@ router.delete("/:id", async (req: Request, res: Response) => {
   res.json({ success: true });
 });
 
-// PATCH /api/assets/:id/usage — 标记数字资产已使用
-router.patch("/:id/usage", async (req: Request, res: Response) => {
-  const db = await getDb();
-  const { id } = req.params;
+// 使用日志（v0.6）：三类资产通用。disposed/expired 资产不再记新事件，历史保留可查
+function checkUsageWritable(res: Response, status: string): boolean {
+  if (status === "disposed" || status === "expired") {
+    res.status(400).json({ error: "已处置/已过期资产不再记录新使用" });
+    return false;
+  }
+  return true;
+}
 
-  const row = db.prepare("SELECT type, ext FROM assets WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+// POST /api/assets/:id/usage-events — 记一条使用（used_at 缺省为本地今天，记今天=quick，记过去=backfill）
+router.post("/:id/usage-events", async (req: Request, res: Response) => {
+  const validationError = validateUsageEventInput(req.body);
+  if (validationError) {
+    res.status(400).json({ error: validationError });
+    return;
+  }
+
+  const db = await getDb();
+  const row = db.prepare("SELECT id, status FROM assets WHERE id = ?").get(req.params.id) as
+    | { id: string; status: string }
+    | undefined;
   if (!row) {
     res.status(404).json({ error: "Asset not found" });
     return;
   }
-  if (row.type !== "digital") {
-    res.status(400).json({ error: "Only digital assets support usage tracking" });
+  if (!checkUsageWritable(res, row.status)) return;
+
+  const event = logUsageEvent(db, row.id, req.body);
+  res.status(201).json(event);
+});
+
+// POST /api/assets/:id/usage-events/bulk — 批量补录（1-200 条，日期可不同，单事务）
+router.post("/:id/usage-events/bulk", async (req: Request, res: Response) => {
+  const validationError = validateUsageEventBulkInput(req.body);
+  if (validationError) {
+    res.status(400).json({ error: validationError });
     return;
   }
 
-  const ext = JSON.parse(row.ext as string || "{}") as Record<string, unknown>;
-  const now = new Date().toISOString();
-  ext.usage_stats = {
-    ...((ext.usage_stats as Record<string, unknown>) ?? {}),
-    last_access: now,
-  };
+  const db = await getDb();
+  const row = db.prepare("SELECT id, status FROM assets WHERE id = ?").get(req.params.id) as
+    | { id: string; status: string }
+    | undefined;
+  if (!row) {
+    res.status(404).json({ error: "Asset not found" });
+    return;
+  }
+  if (!checkUsageWritable(res, row.status)) return;
 
-  db.prepare("UPDATE assets SET ext = ?, updated_at = ? WHERE id = ?").run(
-    JSON.stringify(ext), now, id
-  );
+  const events = logUsageEventsBulk(db, row.id, req.body.events);
+  res.status(201).json({ count: events.length, events });
+});
 
-  db.prepare(
-    "UPDATE notifications SET is_dismissed = 1 WHERE asset_id = ? AND type = 'usage_stagnation' AND is_dismissed = 0"
-  ).run(id);
+// GET /api/assets/:id/usage-events — 使用历史（used_at 倒序 + 总数，limit/offset 分页）
+router.get("/:id/usage-events", async (req: Request, res: Response) => {
+  const db = await getDb();
+  const asset = db.prepare("SELECT id FROM assets WHERE id = ?").get(req.params.id);
+  if (!asset) {
+    res.status(404).json({ error: "Asset not found" });
+    return;
+  }
 
-  const updated = db.prepare("SELECT * FROM assets WHERE id = ?").get(id) as Record<string, unknown>;
+  const limit = Math.min(Math.max(parseInt(String(req.query.limit)) || 100, 1), 200);
+  const offset = Math.max(parseInt(String(req.query.offset)) || 0, 0);
+  const { id } = req.params;
+
+  const total = (db.prepare("SELECT COUNT(*) AS c FROM usage_events WHERE asset_id = ?").get(id) as { c: number }).c;
+  const events = db.prepare(
+    // rowid 兜底同秒排序：created_at 是秒级精度，bulk 200 条同 used_at 时保持稳定倒序
+    "SELECT * FROM usage_events WHERE asset_id = ? ORDER BY used_at DESC, created_at DESC, rowid DESC LIMIT ? OFFSET ?"
+  ).all(id, limit, offset) as UsageEventRow[];
+
+  res.json({ total, events });
+});
+
+// PATCH /api/assets/:id/usage — 标记已使用（v0.6 兼容别名：等价于记一条今天的使用事件，放开三类资产）
+router.patch("/:id/usage", async (req: Request, res: Response) => {
+  const db = await getDb();
+  const id = req.params.id as string;
+
+  const row = db.prepare("SELECT id, status FROM assets WHERE id = ?").get(id) as
+    | { id: string; status: string }
+    | undefined;
+  if (!row) {
+    res.status(404).json({ error: "Asset not found" });
+    return;
+  }
+  if (!checkUsageWritable(res, row.status)) return;
+
+  logUsageEvent(db, id, {});
+
+  const updated = db.prepare(
+    "SELECT a.*, (SELECT COUNT(*) FROM usage_events u WHERE u.asset_id = a.id) AS usage_count FROM assets a WHERE a.id = ?"
+  ).get(id) as Record<string, unknown>;
   res.json({
     ...updated,
     tags: JSON.parse(updated.tags as string || "[]"),
     ext: JSON.parse(updated.ext as string || "{}"),
   });
+});
+
+// POST /api/assets/:id/wake-up — 安排使用（v0.6 唤醒闭环）
+// 宿主 = 最早创建的进行中唤醒清单（kind='wake_up'），无则创建；同清单未勾选且同资产的条目已存在则去重
+router.post("/:id/wake-up", async (req: Request, res: Response) => {
+  const db = await getDb();
+  const assetId = req.params.id as string;
+
+  const asset = db.prepare("SELECT id, name, status FROM assets WHERE id = ?").get(assetId) as
+    | { id: string; name: string; status: string }
+    | undefined;
+  if (!asset) {
+    res.status(404).json({ error: "Asset not found" });
+    return;
+  }
+  if (asset.status === "disposed" || asset.status === "expired") {
+    res.status(400).json({ error: "已处置/已过期资产无需唤醒" });
+    return;
+  }
+
+  const now = new Date().toISOString();
+  let host = db.prepare(
+    "SELECT id FROM checklists WHERE kind = 'wake_up' AND status = 'active' ORDER BY created_at LIMIT 1"
+  ).get() as { id: string } | undefined;
+
+  if (!host) {
+    const checklistId = crypto.randomUUID();
+    db.prepare(
+      "INSERT INTO checklists (id, title, scenario, status, kind, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+    ).run(checklistId, "唤醒计划", "custom", "active", "wake_up", now, now);
+    host = { id: checklistId };
+  }
+
+  const existing = db.prepare(
+    "SELECT id FROM checklist_items WHERE checklist_id = ? AND asset_id = ? AND checked = 0"
+  ).get(host.id, assetId) as { id: string } | undefined;
+  if (existing) {
+    res.json({ checklist_id: host.id, item_id: existing.id, created: false });
+    return;
+  }
+
+  const maxSort = db.prepare("SELECT MAX(sort_order) AS max FROM checklist_items WHERE checklist_id = ?").get(host.id) as { max: number | null };
+  const itemId = crypto.randomUUID();
+  db.prepare(
+    "INSERT INTO checklist_items (id, checklist_id, content, checked, asset_id, sort_order, created_at, updated_at) VALUES (?, ?, ?, 0, ?, ?, ?, ?)"
+  ).run(itemId, host.id, `使用一次「${asset.name}」`, assetId, (maxSort.max ?? -1) + 1, now, now);
+  db.prepare("UPDATE checklists SET updated_at = ? WHERE id = ?").run(now, host.id);
+
+  res.status(201).json({ checklist_id: host.id, item_id: itemId, created: true });
 });
 
 // POST /api/assets/:id/screenshot — 上传订阅截图

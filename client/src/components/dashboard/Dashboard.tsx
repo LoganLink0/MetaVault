@@ -1,11 +1,14 @@
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, AlertTriangle, RefreshCw, TrendingDown, ClipboardCheck } from "lucide-react";
+import { toast } from "sonner";
+import { Bell, AlertTriangle, RefreshCw, TrendingDown, ClipboardCheck, Zap, CalendarClock } from "lucide-react";
 import {
   useDashboardOverview,
   useHealthOverview,
   useSubscriptionSummary,
+  useSecondConsumption,
 } from "@/hooks/useDashboard";
+import { useWakeUpAsset } from "@/hooks/useAssets";
 import { useAssets } from "@/hooks/useAssets";
 import { useChecklists } from "@/hooks/useChecklists";
 import { Badge } from "@/components/ui/badge";
@@ -220,6 +223,77 @@ function TypeDistribution() {
   );
 }
 
+// v0.6 二次消费面板：消费率（近90天有用过的资产占比）+ 吃灰榜（最久未用 Top N，可一键安排使用）
+function SecondConsumptionPanel() {
+  const navigate = useNavigate();
+  const { data: sc } = useSecondConsumption();
+  const wakeUp = useWakeUpAsset();
+
+  if (!sc || sc.total === 0) return null;
+
+  function handleWakeUp(e: React.MouseEvent, assetId: string) {
+    e.stopPropagation();
+    wakeUp.mutate(assetId, {
+      onSuccess: (result) => {
+        toast.success(result.created ? "已加入「唤醒计划」清单" : "该资产已在唤醒计划中", {
+          action: { label: "查看", onClick: () => navigate(`/checklists/${result.checklist_id}`) },
+        });
+      },
+    });
+  }
+
+  return (
+    <div className="bg-pg border-[1.5px] border-ink3 rounded-lg px-4 py-3 grid grid-cols-1 md:grid-cols-[180px_1fr] gap-4" data-testid="sc-panel">
+      {/* 消费率 */}
+      <button
+        className="flex flex-col items-center justify-center gap-1.5 rounded-md border border-ink4 px-3 py-3 hover:bg-[rgba(44,36,24,.04)] transition-colors"
+        onClick={() => navigate("/assets?sort=cpu")}
+        data-testid="sc-rate"
+      >
+        <span className="font-mono text-2xl font-semibold" style={{ color: "var(--color-sub)" }}>{sc.rate}%</span>
+        <span className="text-[10px] text-ink2 text-center leading-tight">近 {sc.window_days} 天二次消费率<br />{sc.consumed}/{sc.total} 件资产</span>
+      </button>
+      {/* 吃灰榜 */}
+      <div className="min-w-0">
+        <div className="flex items-center gap-1.5 text-xs text-ink2 mb-1.5">
+          <Zap className="h-3 w-3 text-sub" />
+          <span>吃灰榜 · 最久未用</span>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4">
+          {sc.dust_list.map((item) => (
+            <div
+              key={item.id}
+              className="flex items-center justify-between gap-1 pl-2 pr-1 py-1 rounded-md hover:bg-[rgba(44,36,24,.04)] transition-colors min-w-0"
+              data-testid="sc-dust-item"
+            >
+              <button
+                onClick={() => navigate(`/assets/${item.id}`)}
+                className="flex items-center gap-1.5 min-w-0 flex-1 text-left"
+              >
+                <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: TYPE_COLORS[item.type] }} />
+                <span className="text-xs text-ink truncate">{item.name}</span>
+              </button>
+              <span className="text-[10px] font-mono shrink-0" style={{ color: item.never_used ? "var(--color-wrn)" : "var(--color-ink3)" }}>
+                {item.never_used ? "从未使用" : `${item.days_since} 天未用`}
+              </span>
+              <button
+                onClick={(e) => handleWakeUp(e, item.id)}
+                disabled={wakeUp.isPending}
+                title="加入唤醒计划清单，勾选完成时自动记一次使用"
+                aria-label={`将 ${item.name} 加入唤醒计划`}
+                className="rounded-md p-1 text-ink2 hover:bg-[rgba(44,36,24,.08)] shrink-0"
+                data-testid="sc-wakeup-btn"
+              >
+                <CalendarClock className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function MonthlyExpirySummary({ events }: { events: { date: string; type: string }[] }) {
   const now = new Date();
   const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -348,6 +422,9 @@ function Dashboard() {
 
       {/* Type distribution bar */}
       <TypeDistribution />
+
+      {/* 二次消费率 + 吃灰榜（无资产时隐藏） */}
+      <SecondConsumptionPanel />
 
       {/* Active checklists (hidden when none) */}
       <ActiveChecklists />

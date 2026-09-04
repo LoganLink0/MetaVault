@@ -35,8 +35,23 @@ function ChecklistDetail() {
   const done = items.filter((i) => i.checked).length;
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
 
-  function handleToggle(itemId: string) {
-    toggleItem.mutate({ checklistId: id!, itemId });
+  // 唤醒清单勾选会自动记使用；资产已处置/过期时服务端跳过记录（usage_logged=false），提示用户
+  function handleToggle(item: { id: string; checked: boolean }) {
+    const isWakeUp = checklist?.kind === "wake_up";
+    if (isWakeUp && checklist?.status !== "active") {
+      toast.error("唤醒清单已完成或已归档，不能再勾选");
+      return;
+    }
+    toggleItem.mutate(
+      { checklistId: id!, itemId: item.id },
+      {
+        onSuccess: (data) => {
+          if (isWakeUp && !item.checked && !data.usage_logged) {
+            toast.info("该资产已处置或过期，未记录使用");
+          }
+        },
+      }
+    );
   }
 
   function handleAddCustomItem() {
@@ -147,8 +162,9 @@ function ChecklistDetail() {
             }`}
           >
             <button
-              onClick={() => handleToggle(item.id)}
-              className="shrink-0"
+              onClick={() => handleToggle(item)}
+              className="shrink-0 disabled:opacity-40"
+              disabled={checklist?.kind === "wake_up" && checklist?.status !== "active"}
               data-testid="toggle-item"
             >
               {item.checked ? (

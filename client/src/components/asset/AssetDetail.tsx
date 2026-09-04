@@ -1,6 +1,6 @@
 import { useNavigate, useParams } from "react-router-dom";
 import { Pencil, Trash2, ArrowLeft, Star } from "lucide-react";
-import { useAsset, useDeleteAsset, useMarkAssetUsed } from "@/hooks/useAssets";
+import { useAsset, useDeleteAsset } from "@/hooks/useAssets";
 import { useRelations } from "@/hooks/useRelations";
 import { useSupplier } from "@/hooks/useSuppliers";
 import { useQuery } from "@tanstack/react-query";
@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { AssetType, AssetStatus, PhysicalExt, DigitalExt, SubscriptionExt } from "@/types/asset";
 import { categoryLabels } from "@/types/asset";
 import RelationManager from "@/components/relation/RelationManager";
+import UsageLog from "@/components/asset/UsageLog";
 
 const typeLabels: Record<AssetType, string> = { physical: "物理资产", digital: "数字资产", subscription: "订阅" };
 const statusLabels: Record<AssetStatus, string> = { active: "使用中", idle: "闲置", expired: "过期", disposed: "已处置" };
@@ -68,7 +69,6 @@ function AssetDetail() {
   const { data: asset, isLoading } = useAsset(id!);
   const { data: relations } = useRelations(id!);
   const deleteAsset = useDeleteAsset();
-  const markUsed = useMarkAssetUsed();
   const { data: supplier } = useSupplier(asset?.supplier_id ?? "");
 
   if (isLoading) return <Skeleton className="h-64 rounded-lg" />;
@@ -191,11 +191,6 @@ function AssetDetail() {
               {dExt.usage_stats?.last_access && (
                 <div><span className="text-muted-foreground">上次使用：</span>{new Date(dExt.usage_stats.last_access).toLocaleString("zh-CN")}</div>
               )}
-              <div className="md:col-span-2">
-                <Button variant="outline" size="sm" onClick={() => markUsed.mutate(id!)} disabled={markUsed.isPending}>
-                  {markUsed.isPending ? "标记中..." : "标记已使用"}
-                </Button>
-              </div>
             </>
           )}
           {sExt && (
@@ -216,6 +211,9 @@ function AssetDetail() {
           {!pExt && !dExt && !sExt && <div className="text-muted-foreground">无扩展信息</div>}
         </CardContent>
       </Card>
+
+      {/* 使用记录（v0.6 二次消费：三类资产通用） */}
+      <UsageLog asset={asset} />
 
       {/* 推荐替换供应商（折旧物理资产） */}
       {asset.type === "physical" && pExt?.current_value != null && asset.purchase_price != null && Number(pExt.current_value) <= Number(asset.purchase_price) * 0.1 && (

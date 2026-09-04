@@ -53,8 +53,9 @@ export function moveChecklistItem(checklistId: string, itemId: string, direction
   });
 }
 
-export function toggleChecklistItem(checklistId: string, itemId: string): Promise<ChecklistItem> {
-  return apiFetch<ChecklistItem>(`/checklists/${checklistId}/items/${itemId}/toggle`, {
+// 唤醒清单勾选自动记使用时返回 usage_logged=true（联动失效资产/仪表盘缓存）
+export function toggleChecklistItem(checklistId: string, itemId: string): Promise<ChecklistItem & { usage_logged?: boolean }> {
+  return apiFetch<ChecklistItem & { usage_logged?: boolean }>(`/checklists/${checklistId}/items/${itemId}/toggle`, {
     method: "PATCH",
   });
 }

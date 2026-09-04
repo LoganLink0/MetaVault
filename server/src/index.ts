@@ -18,6 +18,7 @@ import importRouter from "./routes/import.js";
 import dashboardRouter from "./routes/dashboard.js";
 import exportRouter from "./routes/export.js";
 import checklistsRouter from "./routes/checklists.js";
+import usageEventsRouter from "./routes/usage-events.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -39,6 +40,7 @@ if (process.env.NODE_ENV === "test") {
     db.exec("DELETE FROM push_subscriptions");
     db.exec("DELETE FROM checklist_items");
     db.exec("DELETE FROM checklists");
+    db.exec("DELETE FROM usage_events");
     db.exec("DELETE FROM assets");
     db.exec("DELETE FROM suppliers");
     res.json({ success: true });
@@ -53,6 +55,7 @@ app.use("/api/import", importRouter);
 app.use("/api/dashboard", dashboardRouter);
 app.use("/api/export", exportRouter);
 app.use("/api/checklists", checklistsRouter);
+app.use("/api/usage-events", usageEventsRouter);
 
 // 生产部署：提供前端静态文件 + SPA fallback
 const clientDist = path.join(__dirname, "../../client/dist");

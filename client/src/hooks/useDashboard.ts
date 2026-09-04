@@ -4,12 +4,20 @@ import {
   fetchSubscriptionSummary,
   fetchHealthOverview,
   fetchDashboardTrends,
+  fetchSecondConsumption,
 } from "@/lib/api-dashboard";
 
 export function useDashboardOverview() {
   return useQuery({
     queryKey: ["dashboard", "overview"],
     queryFn: fetchDashboardOverview,
+  });
+}
+
+export function useSecondConsumption() {
+  return useQuery({
+    queryKey: ["dashboard", "second-consumption"],
+    queryFn: fetchSecondConsumption,
   });
 }
 

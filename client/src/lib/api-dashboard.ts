@@ -26,6 +26,23 @@ export interface TrendItem {
   monthly_cost: number;
 }
 
+export interface DustItem {
+  id: string;
+  name: string;
+  type: string;
+  last_used: string;
+  days_since: number;
+  never_used: boolean;
+}
+
+export interface SecondConsumption {
+  window_days: number;
+  consumed: number;
+  total: number;
+  rate: number;
+  dust_list: DustItem[];
+}
+
 export function fetchDashboardOverview(): Promise<DashboardOverview> {
   return apiFetch<DashboardOverview>("/dashboard/overview");
 }
@@ -41,4 +58,8 @@ export function fetchHealthOverview(): Promise<HealthOverview> {
 export function fetchDashboardTrends(months?: number): Promise<TrendItem[]> {
   const query = months ? `?months=${months}` : "";
   return apiFetch<TrendItem[]>(`/dashboard/trends${query}`);
+}
+
+export function fetchSecondConsumption(): Promise<SecondConsumption> {
+  return apiFetch<SecondConsumption>("/dashboard/second-consumption");
 }
