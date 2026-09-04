@@ -1,12 +1,13 @@
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Bell, AlertTriangle, RefreshCw, TrendingDown, ClipboardCheck, Zap, CalendarClock } from "lucide-react";
+import { Bell, AlertTriangle, RefreshCw, TrendingDown, ClipboardCheck, Zap, CalendarClock, Sparkles } from "lucide-react";
 import {
   useDashboardOverview,
   useHealthOverview,
   useSubscriptionSummary,
   useSecondConsumption,
+  useMonthlyReview,
 } from "@/hooks/useDashboard";
 import { useWakeUpAsset } from "@/hooks/useAssets";
 import { useAssets } from "@/hooks/useAssets";
@@ -223,6 +224,47 @@ function TypeDistribution() {
   );
 }
 
+// v0.8 月度回顾：本月二次消费次数 / 在用资产数 / 唤醒件数 + 最常用 Top3
+function MonthlyReviewPanel({ hasAssets }: { hasAssets: boolean }) {
+  const navigate = useNavigate();
+  const { data: review } = useMonthlyReview();
+
+  if (!review || !hasAssets) return null;
+  const monthLabel = `${Number(review.month.slice(5, 7))} 月`;
+
+  return (
+    <div className="bg-pg border-[1.5px] border-ink3 rounded-lg px-4 py-3 flex flex-col md:flex-row md:items-center gap-3" data-testid="monthly-review">
+      <div className="flex items-center gap-2 shrink-0">
+        <Sparkles className="h-3.5 w-3.5 text-sub" />
+        <span className="text-xs text-ink2">{monthLabel}回顾</span>
+      </div>
+      <div className="flex items-center gap-4 font-mono text-sm" data-testid="review-stats">
+        <span><span className="font-semibold text-sub">{review.total_uses}</span> <span className="text-[11px] text-ink2 font-sans">次二次消费</span></span>
+        <span className="text-ink4">|</span>
+        <span><span className="font-semibold text-ink">{review.used_asset_count}</span> <span className="text-[11px] text-ink2 font-sans">件资产在用</span></span>
+        <span className="text-ink4">|</span>
+        <span><span className="font-semibold" style={{ color: "#4a9e6e" }}>{review.awakened_count}</span> <span className="text-[11px] text-ink2 font-sans">件被唤醒</span></span>
+      </div>
+      {review.top_assets.length > 0 && (
+        <div className="flex items-center gap-2 md:ml-auto min-w-0">
+          <span className="text-[11px] text-ink2 shrink-0">最常用</span>
+          {review.top_assets.map((a) => (
+            <button
+              key={a.id}
+              onClick={() => navigate(`/assets/${a.id}`)}
+              className="flex items-center gap-1 px-2 py-0.5 rounded-md border border-ink4 hover:bg-[rgba(44,36,24,.04)] transition-colors min-w-0"
+            >
+              <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: TYPE_COLORS[a.type] }} />
+              <span className="text-xs text-ink truncate max-w-[100px]">{a.name}</span>
+              <span className="text-[10px] font-mono text-ink2">×{a.uses}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // v0.6 二次消费面板：消费率（近90天有用过的资产占比）+ 吃灰榜（最久未用 Top N，可一键安排使用）
 function SecondConsumptionPanel() {
   const navigate = useNavigate();
@@ -422,6 +464,9 @@ function Dashboard() {
 
       {/* Type distribution bar */}
       <TypeDistribution />
+
+      {/* 月度回顾（无资产时隐藏） */}
+      <MonthlyReviewPanel hasAssets={(overview?.totalAssets ?? 0) > 0} />
 
       {/* 二次消费率 + 吃灰榜（无资产时隐藏） */}
       <SecondConsumptionPanel />

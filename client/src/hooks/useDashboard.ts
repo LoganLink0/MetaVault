@@ -5,6 +5,7 @@ import {
   fetchHealthOverview,
   fetchDashboardTrends,
   fetchSecondConsumption,
+  fetchMonthlyReview,
 } from "@/lib/api-dashboard";
 
 export function useDashboardOverview() {
@@ -18,6 +19,13 @@ export function useSecondConsumption() {
   return useQuery({
     queryKey: ["dashboard", "second-consumption"],
     queryFn: fetchSecondConsumption,
+  });
+}
+
+export function useMonthlyReview() {
+  return useQuery({
+    queryKey: ["dashboard", "monthly-review"],
+    queryFn: () => fetchMonthlyReview(),
   });
 }
 

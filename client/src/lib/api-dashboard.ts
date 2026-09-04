@@ -63,3 +63,15 @@ export function fetchDashboardTrends(months?: number): Promise<TrendItem[]> {
 export function fetchSecondConsumption(): Promise<SecondConsumption> {
   return apiFetch<SecondConsumption>("/dashboard/second-consumption");
 }
+
+export interface MonthlyReview {
+  month: string;
+  total_uses: number;
+  used_asset_count: number;
+  awakened_count: number;
+  top_assets: Array<{ id: string; name: string; type: string; uses: number }>;
+}
+
+export function fetchMonthlyReview(month?: string): Promise<MonthlyReview> {
+  return apiFetch<MonthlyReview>(`/dashboard/monthly-review${month ? `?month=${month}` : ""}`);
+}

@@ -49,6 +49,29 @@ router.get("/second-consumption", async (_req: Request, res: Response) => {
   });
 });
 
+// GET /api/dashboard/monthly-review — 月度回顾（v0.8，?month=YYYY-MM 缺省本月）
+router.get("/monthly-review", async (req: Request, res: Response) => {
+  const db = await getDb();
+  const monthParam = typeof req.query.month === "string" ? req.query.month : "";
+  const month = /^\d{4}-\d{2}$/.test(monthParam) ? monthParam : localDateStr().slice(0, 7);
+  const prefix = `${month}%`;
+
+  const totalUses = (db.prepare("SELECT COUNT(*) AS c FROM usage_events WHERE used_at LIKE ?").get(prefix) as { c: number }).c;
+  const usedAssets = (db.prepare("SELECT COUNT(DISTINCT asset_id) AS c FROM usage_events WHERE used_at LIKE ?").get(prefix) as { c: number }).c;
+  // 唤醒 = 首次使用落在本月的资产（MIN(used_at) 在本月内）
+  const awakened = (db.prepare(
+    "SELECT COUNT(*) AS c FROM (SELECT asset_id FROM usage_events GROUP BY asset_id HAVING MIN(used_at) LIKE ?)"
+  ).get(prefix) as { c: number }).c;
+  const topAssets = db.prepare(
+    `SELECT a.id, a.name, a.type, COUNT(*) AS uses
+     FROM usage_events u JOIN assets a ON a.id = u.asset_id
+     WHERE u.used_at LIKE ?
+     GROUP BY u.asset_id ORDER BY uses DESC, a.name LIMIT 3`
+  ).all(prefix);
+
+  res.json({ month, total_uses: totalUses, used_asset_count: usedAssets, awakened_count: awakened, top_assets: topAssets });
+});
+
 // GET /api/dashboard/overview — 总览统计
 router.get("/overview", async (_req: Request, res: Response) => {
   const db = await getDb();
