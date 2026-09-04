@@ -97,12 +97,19 @@ const EXT_KEYS: Record<string, string[]> = {
   subscription: ["billing_cycle", "amount", "next_billing_date", "auto_renew", "usage_frequency", "cancellation_url", "trial_end"],
 };
 
+export interface UsageEventLine {
+  used_at: string;
+  duration_minutes: number | null;
+  note: string | null;
+}
+
 export function assetToNote(
   asset: AssetRow,
   tags: string[],
   ext: Record<string, unknown>,
   supplierName: string | null,
-  relations: RelationshipRow[]
+  relations: RelationshipRow[],
+  usageEvents: UsageEventLine[] = []
 ): string {
   const lines: string[] = ["---"];
   lines.push(`id: ${asset.id}`);
@@ -121,9 +128,27 @@ export function assetToNote(
     if (value == null || value === "") continue;
     lines.push(`${key}: ${typeof value === "object" ? inlineArray(Object.values(value).map(String)) : yamlScalar(value)}`);
   }
+  // 派生键：供 Obsidian Dataview 查询，导入时忽略（真实数据以「## 使用记录」区块回读）
+  const lastUsed = usageEvents.length > 0 ? usageEvents[usageEvents.length - 1].used_at : null;
+  lines.push(`usage_count: ${usageEvents.length}`);
+  if (lastUsed) lines.push(`last_used: ${lastUsed}`);
   lines.push("---", "");
 
-  if (asset.notes) lines.push(asset.notes, "");
+  if (asset.notes) {
+    // notes 写进正文时转义区块标记行（尾随空格）：视觉不变，但不会与真实的「## 使用记录」区块撞车
+    //（\r? 兼容 CRLF 笔记——$ 不匹配 \r 之前）
+    lines.push(asset.notes.replace(/^## 使用记录\r?$/gm, "## 使用记录 "), "");
+  }
+  if (usageEvents.length > 0) {
+    lines.push("## 使用记录", "");
+    for (const ev of usageEvents) {
+      // 备注压平换行（行式格式无法承载多行）；竖线无需转义——备注是最后一段，按段数兜底解析
+      const note = ev.note ? ev.note.replace(/\r?\n/g, " ") : "";
+      const duration = ev.duration_minutes != null ? `${ev.duration_minutes}min` : "-";
+      lines.push(note ? `- ${ev.used_at} | ${duration} | ${note}` : `- ${ev.used_at} | ${duration}`);
+    }
+    lines.push("");
+  }
   if (relations.length > 0) {
     lines.push("## 关联", "");
     for (const rel of relations) {
@@ -132,6 +157,41 @@ export function assetToNote(
     lines.push("");
   }
   return lines.join("\n");
+}
+
+// 回读「## 使用记录」区块：`- YYYY-MM-DD | Nmin或- | 备注`（备注可含 |，取最后段）。
+// 宽容策略：日期不合式的行跳过；区块不存在返回空数组。
+// body 可能被 trim 过（parseFrontmatter），前置虚拟换行保证区块在正文开头时也能命中。
+// 取 lastIndexOf：导出恒把真实区块放在 notes 之后——资产备注里手写的同名标题不应遮蔽真实使用历史
+export function parseUsageSection(body: string): UsageEventLine[] {
+  const normalized = "\n" + body.replace(/\r\n/g, "\n");
+  const start = normalized.lastIndexOf("\n## 使用记录\n");
+  if (start === -1) return [];
+  const rest = normalized.slice(start + "\n## 使用记录\n".length);
+  const nextHeading = rest.indexOf("\n## ");
+  const section = nextHeading === -1 ? rest : rest.slice(0, nextHeading);
+
+  const events: UsageEventLine[] = [];
+  for (const line of section.split("\n")) {
+    const m = line.match(/^- (\d{4}-\d{2}-\d{2})(?: \| (.*))?$/);
+    if (!m) continue;
+    const usedAt = m[1];
+    let duration: number | null = null;
+    let note: string | null = null;
+    if (m[2] != null) {
+      const segs = m[2].split(" | ");
+      if (segs[0] !== "-") {
+        const dm = segs[0].match(/^(\d+)min$/);
+        if (dm) duration = Number(dm[1]);
+      }
+      if (segs.length > 1) {
+        const noteText = segs.slice(1).join(" | ").trim();
+        note = noteText || null;
+      }
+    }
+    events.push({ used_at: usedAt, duration_minutes: duration, note });
+  }
+  return events;
 }
 
 // 解析 frontmatter：`---` 围栏内的扁平 key: value。

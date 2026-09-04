@@ -7,7 +7,7 @@ import { assetToNote, sanitizeFilename, type AssetRow } from "../services/obsidi
 
 const router: RouterType = Router();
 
-// GET /api/export/obsidian — 导出 Obsidian Vault ZIP（v0.7，每资产一个 md）
+// GET /api/export/obsidian — 导出 Obsidian Vault ZIP（v0.7，每资产一个 md；v0.8 起含使用历史）
 router.get("/obsidian", async (_req: Request, res: Response) => {
   const db = await getDb();
   const rows = db.prepare("SELECT * FROM assets ORDER BY created_at").all() as unknown as AssetRow[];
@@ -19,6 +19,16 @@ router.get("/obsidian", async (_req: Request, res: Response) => {
      JOIN assets a ON a.id = (CASE WHEN r.source_id = ? THEN r.target_id ELSE r.source_id END)
      WHERE r.source_id = ? OR r.target_id = ?`
   );
+  // 单次查询全量事件按资产分组，避免逐资产 N+1
+  const eventRows = db.prepare(
+    "SELECT asset_id, used_at, duration_minutes, note FROM usage_events ORDER BY used_at, rowid"
+  ).all() as Array<{ asset_id: string; used_at: string; duration_minutes: number | null; note: string | null }>;
+  const eventsByAsset = new Map<string, Array<{ used_at: string; duration_minutes: number | null; note: string | null }>>();
+  for (const ev of eventRows) {
+    const list = eventsByAsset.get(ev.asset_id) ?? [];
+    list.push({ used_at: ev.used_at, duration_minutes: ev.duration_minutes, note: ev.note });
+    eventsByAsset.set(ev.asset_id, list);
+  }
   const usedFilenames = new Set<string>();
   const zip = new JSZip();
   const folder = zip.folder("MetaVault")!;
@@ -50,13 +60,15 @@ router.get("/obsidian", async (_req: Request, res: Response) => {
         otherName: r.other_name,
         relation: r.source_id === asset.id ? r.relation : `反向:${r.relation}`,
       }));
+    const usageEvents = eventsByAsset.get(asset.id) ?? [];
 
     const note = assetToNote(
       asset,
       JSON.parse(asset.tags || "[]") as string[],
       JSON.parse(asset.ext || "{}") as Record<string, unknown>,
       asset.supplier_id ? supplierNames.get(asset.supplier_id) ?? null : null,
-      relations
+      relations,
+      usageEvents
     );
 
     const filename = uniqueFilename(sanitizeFilename(asset.name), asset.id);
@@ -69,10 +81,14 @@ router.get("/obsidian", async (_req: Request, res: Response) => {
   res.send(buf);
 });
 
-// GET /api/export/assets — 导出资产为 Excel
+// GET /api/export/assets — 导出资产为 Excel（v0.8 起含使用次数/最近使用列，仅报表用途）
 router.get("/assets", async (_req: Request, res: Response) => {
   const db = await getDb();
-  const rows = db.prepare("SELECT * FROM assets ORDER BY updated_at DESC").all() as Record<string, unknown>[];
+  const rows = db.prepare(
+    `SELECT a.*, COUNT(u.id) AS usage_count, MAX(u.used_at) AS last_used
+     FROM assets a LEFT JOIN usage_events u ON u.asset_id = a.id
+     GROUP BY a.id ORDER BY a.updated_at DESC`
+  ).all() as Record<string, unknown>[];
 
   const typeLabels: Record<string, string> = { physical: "物理资产", digital: "数字资产", subscription: "订阅" };
   const statusLabels: Record<string, string> = { active: "使用中", idle: "闲置", expired: "过期", disposed: "已处置" };
@@ -90,6 +106,8 @@ router.get("/assets", async (_req: Request, res: Response) => {
       "获取日期": row.purchase_date,
       "获取价格": row.purchase_price,
       "币种": row.currency,
+      "使用次数": Number(row.usage_count ?? 0),
+      "最近使用": row.last_used ?? "",
       "备注": row.notes,
       "创建时间": row.created_at,
       "更新时间": row.updated_at,

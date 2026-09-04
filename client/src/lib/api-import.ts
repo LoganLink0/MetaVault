@@ -42,6 +42,8 @@ export interface ObsidianImportDetail {
   name?: string;
   action: "created" | "updated" | "error" | "would_create" | "would_update";
   error?: string;
+  events?: number;
+  skipped_events?: number;
 }
 
 export interface ObsidianImportResult {
@@ -49,6 +51,7 @@ export interface ObsidianImportResult {
   created: number;
   updated: number;
   errors: number;
+  usage_events: number;
   dryRun: boolean;
   details: ObsidianImportDetail[];
 }

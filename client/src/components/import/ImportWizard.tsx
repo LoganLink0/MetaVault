@@ -28,7 +28,7 @@ function ImportWizard() {
   const [step, setStep] = useState<"upload" | "preview" | "obsidian-preview" | "result">("upload");
   const [preview, setPreview] = useState<{ columns: string[]; rows: Record<string, unknown>[]; totalRows: number; filePath: string } | null>(null);
   const [mapping, setMapping] = useState<Record<string, string>>({});
-  const [result, setResult] = useState<{ imported?: number; created?: number; updated?: number; errors: number; total: number } | null>(null);
+  const [result, setResult] = useState<{ imported?: number; created?: number; updated?: number; errors: number; total: number; usage_events?: number } | null>(null);
   const [error, setError] = useState("");
   const [dragging, setDragging] = useState(false);
   const [obsidianFiles, setObsidianFiles] = useState<File[]>([]);
@@ -135,7 +135,7 @@ function ImportWizard() {
     setPending(true);
     try {
       const res = await importObsidian(obsidianFiles, false);
-      setResult({ created: res.created, updated: res.updated, errors: res.errors, total: res.total });
+      setResult({ created: res.created, updated: res.updated, errors: res.errors, total: res.total, usage_events: res.usage_events });
       setStep("result");
     } catch (err) {
       setError(err instanceof Error ? err.message : "导入失败");
@@ -252,6 +252,7 @@ function ImportWizard() {
                     <th className="px-2 py-1 border text-left">文件</th>
                     <th className="px-2 py-1 border text-left">资产</th>
                     <th className="px-2 py-1 border text-left">处理方式</th>
+                    <th className="px-2 py-1 border text-left">使用记录</th>
                     <th className="px-2 py-1 border text-left">说明</th>
                   </tr>
                 </thead>
@@ -260,8 +261,9 @@ function ImportWizard() {
                     <tr key={i} className={d.action === "error" ? "text-destructive" : ""}>
                       <td className="px-2 py-1 border max-w-[240px] truncate">{d.file}</td>
                       <td className="px-2 py-1 border">{d.name ?? "-"}</td>
+                      <td className="px-2 py-1 border">{d.action === "error" ? "-" : `${d.events ?? 0} 条`}</td>
                       <td className="px-2 py-1 border">{obsidianActionLabels[d.action] ?? d.action}</td>
-                      <td className="px-2 py-1 border">{d.error ?? ""}</td>
+                      <td className="px-2 py-1 border">{d.error ?? (d.skipped_events ? `${d.skipped_events} 条无效记录被跳过` : "")}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -302,8 +304,11 @@ function ImportWizard() {
               <span className="text-xs text-ink2">总计</span>
             </div>
           </div>
-          {result.updated != null && result.updated > 0 && (
-            <p className="text-xs text-muted-foreground">其中新建 {result.created ?? 0} 个、更新 {result.updated} 个</p>
+          {result.usage_events != null && (
+            <p className="text-xs text-muted-foreground">
+              其中新建 {result.created ?? 0} 个、更新 {result.updated ?? 0} 个
+              {result.usage_events > 0 ? `，回读使用记录 ${result.usage_events} 条` : ""}
+            </p>
           )}
           <Button onClick={resetAll}>继续导入</Button>
         </div>

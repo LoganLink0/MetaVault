@@ -5,7 +5,8 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import * as xlsx from "xlsx";
-import { parseFrontmatter, noteToAssetFields, type ParsedAsset } from "../services/obsidian.js";
+import { validateUsageEventInput } from "../middleware/validate.js";
+import { parseFrontmatter, noteToAssetFields, parseUsageSection, type ParsedAsset, type UsageEventLine } from "../services/obsidian.js";
 
 const upload = multer({ dest: "uploads/" });
 const obsidianUpload = multer({
@@ -124,8 +125,8 @@ router.post("/obsidian", (req: Request, res: Response, next: (err?: unknown) => 
   const supplierByName = new Map(supplierRows.map((s) => [s.name, s.id]));
 
   // 逐文件解析（内容读入内存后立即清理临时文件）
-  const parsed: Array<{ file: string; asset: ParsedAsset }> = [];
-  const details: Array<{ file: string; name?: string; action: string; error?: string }> = [];
+  const parsed: Array<{ file: string; asset: ParsedAsset; events: UsageEventLine[]; skippedEvents: number }> = [];
+  const details: Array<{ file: string; name?: string; action: string; error?: string; events?: number; skipped_events?: number }> = [];
 
   for (const file of files) {
     try {
@@ -141,7 +142,11 @@ router.post("/obsidian", (req: Request, res: Response, next: (err?: unknown) => 
         details.push({ file: file.originalname, action: "error", error: asset });
         continue;
       }
-      parsed.push({ file: file.originalname, asset });
+      // 事件与 API 记使用同一套校验：非法行（假日期/未来日期/超界时长/超长备注）跳过并计数，
+      // 绝不入事务——否则 CHECK 约束会把整批导入炸成 500
+      const rawEvents = parseUsageSection(fm.body);
+      const events = rawEvents.filter((ev) => validateUsageEventInput(ev as unknown as Record<string, unknown>) === null);
+      parsed.push({ file: file.originalname, asset, events, skippedEvents: rawEvents.length - events.length });
     } catch (err) {
       fs.unlink(file.path, () => {});
       details.push({ file: file.originalname, action: "error", error: err instanceof Error ? err.message : "文件读取失败" });
@@ -151,12 +156,12 @@ router.post("/obsidian", (req: Request, res: Response, next: (err?: unknown) => 
   if (dryRun) {
     // 批内同 id 的第二个文件起按"将更新"预览，与实际执行结果一致
     const seenIds = new Set<string>();
-    for (const { file, asset } of parsed) {
+    for (const { file, asset, events, skippedEvents } of parsed) {
       const exists = asset.id ? (db.prepare("SELECT id FROM assets WHERE id = ?").get(asset.id) || seenIds.has(asset.id)) : false;
       if (asset.id) seenIds.add(asset.id);
-      details.push({ file, name: asset.name, action: exists ? "would_update" : "would_create" });
+      details.push({ file, name: asset.name, action: exists ? "would_update" : "would_create", events: events.length, skipped_events: skippedEvents });
     }
-    res.json({ total: files.length, created: 0, updated: 0, errors: details.filter((d) => d.action === "error").length, dryRun: true, details });
+    res.json({ total: files.length, created: 0, updated: 0, errors: details.filter((d) => d.action === "error").length, usage_events: 0, dryRun: true, details });
     return;
   }
 
@@ -173,28 +178,51 @@ router.post("/obsidian", (req: Request, res: Response, next: (err?: unknown) => 
   let created = 0;
   let updated = 0;
   let errors = details.filter((d) => d.action === "error").length;
+  let usageEventsImported = 0;
 
-  db.transaction(() => {
-    for (const { file, asset } of parsed) {
-      const supplierId = asset.supplier ? supplierByName.get(asset.supplier) ?? null : null;
-      const tags = JSON.stringify(asset.tags);
-      const ext = JSON.stringify(asset.ext);
+  const findEvent = db.prepare(
+    `SELECT id FROM usage_events WHERE asset_id = ? AND used_at = ?
+     AND COALESCE(duration_minutes, -1) = COALESCE(?, -1) AND COALESCE(note, '') = COALESCE(?, '')`
+  );
+  const insertEvent = db.prepare(
+    `INSERT INTO usage_events (id, asset_id, used_at, duration_minutes, note, source) VALUES (?, ?, ?, ?, ?, 'backfill')`
+  );
 
-      const exists = asset.id ? db.prepare("SELECT id FROM assets WHERE id = ?").get(asset.id) as { id: string } | undefined : undefined;
-      if (exists) {
-        update.run(asset.name, asset.type, asset.category, asset.status, tags, asset.purchase_date, asset.purchase_price, asset.currency, supplierId, asset.notes, ext, now, exists.id);
-        updated++;
-        details.push({ file, name: asset.name, action: "updated" });
-      } else {
-        const id = asset.id ?? crypto.randomUUID();
-        insert.run(id, asset.name, asset.type, asset.category, asset.status, tags, asset.purchase_date, asset.purchase_price, asset.currency, supplierId, asset.notes, ext, now, now);
-        created++;
-        details.push({ file, name: asset.name, action: "created" });
+  // 回读使用事件：按（资产+日期+时长+备注）去重合并——只增不删，保留导入期间新产生的记录，幂等
+  try {
+    db.transaction(() => {
+      for (const { file, asset, events, skippedEvents } of parsed) {
+        const supplierId = asset.supplier ? supplierByName.get(asset.supplier) ?? null : null;
+        const tags = JSON.stringify(asset.tags);
+        const ext = JSON.stringify(asset.ext);
+
+        const exists = asset.id ? db.prepare("SELECT id FROM assets WHERE id = ?").get(asset.id) as { id: string } | undefined : undefined;
+        const assetId = exists ? exists.id : (asset.id ?? crypto.randomUUID());
+        if (exists) {
+          update.run(asset.name, asset.type, asset.category, asset.status, tags, asset.purchase_date, asset.purchase_price, asset.currency, supplierId, asset.notes, ext, now, exists.id);
+          updated++;
+          details.push({ file, name: asset.name, action: "updated", events: events.length, skipped_events: skippedEvents });
+        } else {
+          insert.run(assetId, asset.name, asset.type, asset.category, asset.status, tags, asset.purchase_date, asset.purchase_price, asset.currency, supplierId, asset.notes, ext, now, now);
+          created++;
+          details.push({ file, name: asset.name, action: "created", events: events.length, skipped_events: skippedEvents });
+        }
+
+        for (const ev of events) {
+          const dup = findEvent.get(assetId, ev.used_at, ev.duration_minutes ?? null, ev.note ?? null);
+          if (dup) continue;
+          insertEvent.run(crypto.randomUUID(), assetId, ev.used_at, ev.duration_minutes ?? null, ev.note ?? null);
+          usageEventsImported++;
+        }
       }
-    }
-  })();
+    })();
+  } catch (err) {
+    // 事件已预校验，剩余失败属异常情况：整批回滚后以 400 报告，而非裸 500
+    res.status(400).json({ error: "导入失败：" + (err instanceof Error ? err.message : "未知错误") });
+    return;
+  }
 
-  res.json({ total: files.length, created, updated, errors, dryRun: false, details });
+  res.json({ total: files.length, created, updated, errors, usage_events: usageEventsImported, dryRun: false, details });
 });
 
 export default router;
