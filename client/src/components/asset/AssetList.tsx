@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/select";
 import type { AssetType, AssetStatus, AssetFilters } from "@/types/asset";
 import { categoryLabels } from "@/types/asset";
+import { currencySymbol } from "@/lib/currency";
 
 const typeLabels: Record<AssetType, string> = {
   physical: "物理资产",
@@ -343,7 +344,7 @@ function AssetList() {
                   <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
                     <Badge variant={asset.type}>{typeLabels[asset.type]}</Badge>
                     {asset.purchase_price != null && (
-                      <span className="font-mono">¥{asset.purchase_price.toLocaleString()}</span>
+                      <span className="font-mono">{currencySymbol(asset.currency)}{asset.purchase_price.toLocaleString()}</span>
                     )}
                     {asset.type !== "subscription" && asset.usage_count != null && (
                       <span className="font-mono" data-testid="usage-count-badge">{asset.usage_count === 0 ? "从未使用" : `已用 ${asset.usage_count} 次`}</span>

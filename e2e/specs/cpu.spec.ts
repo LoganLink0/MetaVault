@@ -28,6 +28,15 @@ test.describe("单次使用成本 Cost Per Use", () => {
     await expect(page.getByTestId("cost-per-use")).toContainText("/次");
   });
 
+  test("非 CNY 币种显示对应符号", async ({ page }) => {
+    const asset = await createAsset({ name: "CPU美元机", type: "physical", category: "physical.camera", purchase_price: 200, currency: "USD" });
+    await page.goto(`/assets/${asset.id}`);
+    await page.waitForLoadState("networkidle");
+
+    await page.getByTestId("usage-quick-btn").click();
+    await expect(page.getByTestId("cost-per-use")).toContainText("$200");
+  });
+
   test("订阅与无价格资产不展示 CP/U", async ({ page }) => {
     const sub = await createAsset({ name: "CPU订阅", type: "subscription", category: "subscription.saas", purchase_price: 999 });
     const noPrice = await createAsset({ name: "CPU无价格", type: "physical", category: "physical.other" });

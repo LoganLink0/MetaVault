@@ -14,6 +14,7 @@ import type { AssetType, AssetStatus, PhysicalExt, DigitalExt, SubscriptionExt }
 import { categoryLabels } from "@/types/asset";
 import RelationManager from "@/components/relation/RelationManager";
 import UsageLog from "@/components/asset/UsageLog";
+import { currencySymbol } from "@/lib/currency";
 
 const typeLabels: Record<AssetType, string> = { physical: "物理资产", digital: "数字资产", subscription: "订阅" };
 const statusLabels: Record<AssetStatus, string> = { active: "使用中", idle: "闲置", expired: "过期", disposed: "已处置" };
@@ -127,7 +128,7 @@ function AssetDetail() {
         <CardHeader><CardTitle className="font-display text-sm font-semibold tracking-wide">基本信息</CardTitle></CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
           {asset.purchase_date && <div><span className="text-muted-foreground">获取日期：</span>{asset.purchase_date}</div>}
-          {asset.purchase_price != null && <div><span className="text-muted-foreground">获取价格：</span><span className="font-mono">¥{asset.purchase_price.toLocaleString()}</span></div>}
+          {asset.purchase_price != null && <div><span className="text-muted-foreground">获取价格：</span><span className="font-mono">{currencySymbol(asset.currency)}{asset.purchase_price.toLocaleString()}</span></div>}
           <div><span className="text-muted-foreground">币种：</span>{asset.currency}</div>
           {asset.supplier_id && supplier && (
             <div><span className="text-muted-foreground">供应商：</span>
@@ -196,7 +197,7 @@ function AssetDetail() {
           {sExt && (
             <>
               {sExt.billing_cycle && <div><span className="text-muted-foreground">计费周期：</span>{sExt.billing_cycle}</div>}
-              {sExt.amount != null && <div><span className="text-muted-foreground">每期费用：</span><span className="font-mono">¥{Number(sExt.amount).toLocaleString()}</span></div>}
+              {sExt.amount != null && <div><span className="text-muted-foreground">每期费用：</span><span className="font-mono">{currencySymbol(asset.currency)}{Number(sExt.amount).toLocaleString()}</span></div>}
               {sExt.next_billing_date && <div><span className="text-muted-foreground">下次扣费：</span>{sExt.next_billing_date}</div>}
               {sExt.trial_end && <div><span className="text-muted-foreground">试用到期：</span>{sExt.trial_end}</div>}
               {sExt.usage_frequency && <div><span className="text-muted-foreground">使用频率：</span>{usageFreqLabels[sExt.usage_frequency] ?? sExt.usage_frequency}</div>}

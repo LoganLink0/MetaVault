@@ -97,6 +97,7 @@ export function useToggleChecklistItem() {
         qc.invalidateQueries({ queryKey: ["assets", data.asset_id] });
         qc.invalidateQueries({ queryKey: ["dashboard"] });
         qc.invalidateQueries({ queryKey: ["notifications"] });
+        qc.invalidateQueries({ queryKey: ["usage-events"] });
       }
     },
   });
@@ -117,10 +118,11 @@ export function useCompleteChecklist() {
     onSuccess: (_data, id) => {
       qc.invalidateQueries({ queryKey: ["checklists"] });
       qc.invalidateQueries({ queryKey: ["checklists", id] });
-      // 唤醒清单整体完成会逐条记使用（记今天会 dismiss 停滞提醒），资产/面板/通知一并刷新
+      // 唤醒清单整体完成会逐条记使用（记今天会 dismiss 停滞提醒），资产/面板/通知/使用日志一并刷新
       qc.invalidateQueries({ queryKey: ["assets"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
       qc.invalidateQueries({ queryKey: ["notifications"] });
+      qc.invalidateQueries({ queryKey: ["usage-events"] });
     },
   });
 }
