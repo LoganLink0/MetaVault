@@ -448,7 +448,7 @@ client/src/
 
 **记事件副作用（POST 与 PATCH 一致）：** 仅"记今天"的事件（source=quick）刷新 digital 资产 `ext.usage_stats.last_access`（完整 ISO、只前进不回退）并 dismiss 该资产未处理的 usage_stagnation 通知；补录过去日期（backfill）只写事件、不动活跃度通道。
 
-**第二期 CP/U：** 详情 `GET /api/assets/:id` 附加 `usage_count`；列表排序 `sort=cpu` 用一次 LEFT JOIN 聚合，**不做逐资产子查询**。实现形态：`SELECT a.*, COUNT(u.id) AS usage_count FROM assets a LEFT JOIN usage_events u ON u.asset_id = a.id ... GROUP BY a.id ORDER BY COUNT(u.id) ASC, a.purchase_price DESC`（与技术设计初期版本的"聚合子查询 + COALESCE"实测语义等价，以本形态为准）。口径说明：**订阅参与 cpu 排序但 UI 不展示其计数**（排序是代理指标"最少使用优先"，非严格 CP/U 降序）；CP/U 数值本身由前端用 `purchase_price / usage_count` 计算（次数为 0 显示"从未二次消费"）。
+**第二期 CP/U：** 详情 `GET /api/assets/:id` 附加 `usage_count`；列表排序 `sort=cpu` 用一次 LEFT JOIN 聚合，**不做逐资产子查询**。实现形态：`SELECT a.*, COUNT(u.id) AS usage_count FROM assets a LEFT JOIN usage_events u ON u.asset_id = a.id ... GROUP BY a.id ORDER BY COUNT(u.id) ASC, a.purchase_price DESC`（与技术设计初期版本的"聚合子查询 + COALESCE"实测语义等价，以本形态为准）。口径说明：**订阅参与 cpu 排序但 UI 不展示其计数**（排序是代理指标"最少使用优先"，非严格 CP/U 降序）；CP/U 数值本身由前端用 `purchase_price / usage_count` 计算（次数为 0 显示"从未二次消费"）；金额符号统一走 `lib/currency.ts` 的 `currencySymbol()`（CNY/USD/EUR/JPY/GBP 映射，未知币种回退为"代码+空格"，空/缺省回退 ¥；单资产金额——CP/U、列表卡片、详情页获取价格/估值/每期费用——均适用；仪表盘资产总值与订阅月费为跨币种聚合，暂按 CNY 符号显示，多币种并存时另议口径）。
 
 **第三期仪表盘 `GET /api/dashboard/second-consumption`：** 一次请求返回 `{ rate, dust_list }`（内部 3 条 SQL）——`rate` = 近 90 天有事件的非 disposed/expired 资产数 ÷ 非 disposed/expired 资产总数（窗口 `[today-89, today]`，双端本地日期）；`dust_list` = 非 disposed/expired 按 `MAX(used_at)` 最旧排序 Top 10（无事件用 created_at 换算本地日期兜底），复合索引 `(asset_id, used_at)` 使每资产 MAX 走索引。
 
