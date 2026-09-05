@@ -17,6 +17,8 @@ test.describe("关联领地（关联可视化图）", () => {
     await expect(page.getByTestId("relation-node")).toHaveCount(4);
     await expect(page.getByTestId("relation-edge")).toHaveCount(2);
     await expect(page.getByTestId("orphan-hint")).toContainText("1 件暂无关联");
+    // N≤24：全部节点带标签
+    await expect(page.locator('[data-testid="relation-svg"] text')).toHaveCount(4);
     // 图例四种关系（在图例容器内断言，避免宽松定位假阳性）
     const legend = page.getByTestId("graph-legend");
     for (const label of ["依赖", "包含", "绑定", "相关"]) {
@@ -44,6 +46,28 @@ test.describe("关联领地（关联可视化图）", () => {
     await page.getByTestId("filter-all").click();
     await expect(page.getByTestId("relation-node")).toHaveCount(3);
     await expect(page.getByTestId("relation-edge")).toHaveCount(2);
+  });
+
+  test("标签缓解：N>24 时仅标注有连接的节点，hover 恢复显示", async ({ page }) => {
+    await resetDb();
+    const a = await createAsset({ name: "缓解相机", type: "physical", category: "physical.camera" });
+    const b = await createAsset({ name: "缓解域名", type: "digital", category: "digital.domain" });
+    await createRelation(a.id, b.id, "related_to");
+    const orphans: Array<{ id: string }> = [];
+    for (let i = 0; i < 24; i++) {
+      orphans.push(await createAsset({ name: `缓解孤儿${i}号长名称资产`, type: "physical", category: "physical.other" }));
+    }
+
+    await page.goto("/relations");
+    await page.waitForLoadState("networkidle");
+    await expect(page.getByTestId("relation-node")).toHaveCount(26);
+    // 26 节点超过阈值：只有 2 个有连接的节点带标签
+    await expect(page.locator('[data-testid="relation-svg"] text')).toHaveCount(2);
+
+    // hover 一个孤儿节点：其标签出现（截断至 6 字符）
+    await page.locator(`[data-node-id="${orphans[0].id}"]`).getByTestId("relation-node-dot").hover();
+    await expect(page.locator('[data-testid="relation-svg"] text')).toHaveCount(3);
+    await expect(page.locator('[data-testid="relation-svg"] text').filter({ hasText: "缓解孤儿0" })).toHaveCount(1);
   });
 
   test("点击节点跳转资产详情", async ({ page }) => {

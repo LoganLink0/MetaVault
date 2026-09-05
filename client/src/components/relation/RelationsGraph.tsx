@@ -30,8 +30,17 @@ function polar(angle: number, radius: number): { x: number; y: number } {
   return { x: CENTER + radius * Math.cos(angle), y: CENTER + radius * Math.sin(angle) };
 }
 
-function truncate(name: string, max = 12): string {
+function truncate(name: string, max: number): string {
   return name.length > max ? name.slice(0, max) + "…" : name;
+}
+
+// 标签缓解阈值：节点多于该数时只标注有连接的节点（hover/选中恒显示）
+const LABEL_ALL_THRESHOLD = 24;
+// 按规模动态截断长度
+function labelMaxChars(nodeCount: number): number {
+  if (nodeCount <= 16) return 12;
+  if (nodeCount <= 40) return 8;
+  return 6;
 }
 
 const ALL_TYPES: AssetType[] = ["physical", "digital", "subscription"];
@@ -184,15 +193,17 @@ function RelationsGraph() {
                 );
               })}
               {/* 节点与标签层 */}
-              {positioned.map(({ node, angle, x, y }) => {
+              {positioned.map(({ node, angle, x, y }, i) => {
                 const isActive = highlightId === node.id;
                 const connected = connectedIds.has(node.id);
                 const dimmed = highlightId !== null && !isActive && !edges.some((e) => (e.source_id === highlightId && e.target_id === node.id) || (e.target_id === highlightId && e.source_id === node.id));
                 const faded = (node.status === "disposed" || node.status === "expired") ? 0.35 : 1;
-                const labelRadius = RADIUS + 26;
+                // 相邻节点双档标签半径交错，降低环外标签碰撞
+                const labelRadius = RADIUS + (i % 2 === 0 ? 24 : 54);
                 const lp = polar(angle, labelRadius);
                 const cos = Math.cos(angle);
                 const anchor = cos > 0.3 ? "start" : cos < -0.3 ? "end" : "middle";
+                const showLabel = nodes.length <= LABEL_ALL_THRESHOLD || connected || isActive;
                 return (
                   <g
                     key={node.id}
@@ -208,17 +219,19 @@ function RelationsGraph() {
                     {/* 透明命中区：节点圆点小，扩大可点击范围 */}
                     <circle cx={x} cy={y} r={22} fill="transparent" data-testid="relation-node-hit" />
                     <circle cx={x} cy={y} r={connected ? 7 : 4.5} fill={TYPE_COLORS[node.type]} fillOpacity={connected ? 1 : 0.45} data-testid="relation-node-dot" />
-                    <text
-                      x={lp.x}
-                      y={lp.y}
-                      textAnchor={anchor}
-                      dominantBaseline="middle"
-                      fontSize={isActive ? 17 : 15}
-                      fill={isActive ? "var(--color-ink)" : "var(--color-ink2)"}
-                      fontFamily="'DM Sans', sans-serif"
-                    >
-                      {truncate(node.name)}
-                    </text>
+                    {showLabel && (
+                      <text
+                        x={lp.x}
+                        y={lp.y}
+                        textAnchor={anchor}
+                        dominantBaseline="middle"
+                        fontSize={isActive ? 17 : 15}
+                        fill={isActive ? "var(--color-ink)" : "var(--color-ink2)"}
+                        fontFamily="'DM Sans', sans-serif"
+                      >
+                        {truncate(node.name, labelMaxChars(nodes.length))}
+                      </text>
+                    )}
                   </g>
                 );
               })}
