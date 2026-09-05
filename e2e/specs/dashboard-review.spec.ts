@@ -53,6 +53,30 @@ test.describe("月度回顾", () => {
     await expect(page.getByTestId("monthly-review")).toContainText("回顾高频");
   });
 
+  test("往月翻看：上月与本月数据切换，当前月下一页禁用", async ({ page }) => {
+    await resetDb();
+    const a = await createAsset({ name: "翻月高频", type: "physical", category: "physical.camera" });
+    const b = await createAsset({ name: "翻月上月", type: "physical", category: "physical.other" });
+    await logUsage(a.id, todayStr());
+    await logUsage(b.id, prevMonthMidStr());
+
+    await page.goto("/");
+    await page.waitForLoadState("networkidle");
+    await expect(page.getByTestId("review-stats")).toContainText("1");
+
+    // 翻到上月：月份标签变化 + 上月事件计数为 1，下一页（回本月）可用
+    const prevMonthLabel = `${Number(prevMonthMidStr().slice(5, 7))} 月回顾`;
+    await page.getByTestId("review-prev").click();
+    await expect(page.getByTestId("monthly-review")).toContainText(prevMonthLabel);
+    await expect(page.getByTestId("review-stats")).toContainText("1");
+    await expect(page.getByTestId("monthly-review")).toContainText("件被唤醒");
+    await expect(page.getByTestId("review-next")).toBeEnabled();
+
+    // 回到本月：下一页禁用
+    await page.getByTestId("review-next").click();
+    await expect(page.getByTestId("review-next")).toBeDisabled();
+  });
+
   test("无使用记录时显示 0（有资产在册）", async ({ page }) => {
     await resetDb();
     await createAsset({ name: "回顾零记录", type: "physical", category: "physical.other" });

@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Bell, AlertTriangle, RefreshCw, TrendingDown, ClipboardCheck, Zap, CalendarClock, Sparkles } from "lucide-react";
@@ -224,19 +224,35 @@ function TypeDistribution() {
   );
 }
 
-// v0.8 月度回顾：本月二次消费次数 / 在用资产数 / 唤醒件数 + 最常用 Top3
+// v0.8 月度回顾：本月二次消费次数 / 在用资产数 / 唤醒件数 + 最常用 Top3；v0.9 支持往月翻看
+function currentMonth(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function shiftMonth(month: string, delta: number): string {
+  const [y, m] = month.split("-").map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
 function MonthlyReviewPanel({ hasAssets }: { hasAssets: boolean }) {
   const navigate = useNavigate();
-  const { data: review } = useMonthlyReview();
+  const [month, setMonth] = useState(currentMonth());
+  const { data: review } = useMonthlyReview(month);
 
   if (!review || !hasAssets) return null;
   const monthLabel = `${Number(review.month.slice(5, 7))} 月`;
+  const isCurrent = review.month === currentMonth();
+  const navBtn = "rounded-md px-1.5 py-0.5 text-ink2 hover:bg-[rgba(44,36,24,.08)] disabled:opacity-30 disabled:hover:bg-transparent transition-colors";
 
   return (
     <div className="bg-pg border-[1.5px] border-ink3 rounded-lg px-4 py-3 flex flex-col md:flex-row md:items-center gap-3" data-testid="monthly-review">
-      <div className="flex items-center gap-2 shrink-0">
+      <div className="flex items-center gap-1 shrink-0">
         <Sparkles className="h-3.5 w-3.5 text-sub" />
-        <span className="text-xs text-ink2">{monthLabel}回顾</span>
+        <button className={navBtn} onClick={() => setMonth((m) => shiftMonth(m, -1))} data-testid="review-prev" title="上一月">←</button>
+        <span className="text-xs text-ink2 whitespace-nowrap">{monthLabel}回顾</span>
+        <button className={navBtn} disabled={isCurrent} onClick={() => setMonth((m) => shiftMonth(m, 1))} data-testid="review-next" title="下一月">→</button>
       </div>
       <div className="flex items-center gap-4 font-mono text-sm" data-testid="review-stats">
         <span><span className="font-semibold text-sub">{review.total_uses}</span> <span className="text-[11px] text-ink2 font-sans">次二次消费</span></span>

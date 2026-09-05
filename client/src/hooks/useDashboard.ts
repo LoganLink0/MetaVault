@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import {
   fetchDashboardOverview,
   fetchSubscriptionSummary,
@@ -22,10 +22,11 @@ export function useSecondConsumption() {
   });
 }
 
-export function useMonthlyReview() {
+export function useMonthlyReview(month?: string) {
   return useQuery({
-    queryKey: ["dashboard", "monthly-review"],
-    queryFn: () => fetchMonthlyReview(),
+    queryKey: ["dashboard", "monthly-review", month ?? "current"],
+    queryFn: () => fetchMonthlyReview(month),
+    placeholderData: keepPreviousData, // 翻月时保留上月数据展示，避免整卡卸载闪烁
   });
 }
 
