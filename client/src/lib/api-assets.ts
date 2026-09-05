@@ -36,8 +36,8 @@ export function deleteAsset(id: string): Promise<void> {
 }
 
 // v0.6 使用日志（旧 PATCH /usage 接口仅为外部兼容保留，前端不再使用）
-export function fetchUsageEvents(assetId: string, limit = 100): Promise<UsageEventList> {
-  return apiFetch<UsageEventList>(`/assets/${assetId}/usage-events?limit=${limit}`);
+export function fetchUsageEvents(assetId: string, limit = 200, offset = 0): Promise<UsageEventList> {
+  return apiFetch<UsageEventList>(`/assets/${assetId}/usage-events?limit=${limit}&offset=${offset}`);
 }
 
 export function createUsageEvent(assetId: string, input: UsageEventInput): Promise<UsageEvent> {

@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   fetchAssets, fetchAsset, createAsset, updateAsset, deleteAsset,
   fetchUsageEvents, createUsageEvent, bulkCreateUsageEvents, deleteUsageEvent,
@@ -68,10 +68,16 @@ export function useDeleteAsset() {
   });
 }
 
-export function useUsageEvents(assetId: string, limit = 100) {
-  return useQuery({
+// v0.9 使用历史分页加载（单页 200 条，加载更多增量拉取；失效链靠 ["usage-events", assetId] 前缀匹配）
+export function useUsageEvents(assetId: string, limit = 200) {
+  return useInfiniteQuery({
     queryKey: ["usage-events", assetId, limit],
-    queryFn: () => fetchUsageEvents(assetId, limit),
+    queryFn: ({ pageParam }) => fetchUsageEvents(assetId, limit, pageParam),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      const fetched = allPages.reduce((sum, p) => sum + p.events.length, 0);
+      return fetched < lastPage.total ? fetched : undefined;
+    },
     enabled: !!assetId,
   });
 }
@@ -107,6 +113,7 @@ export function useWakeUpAsset() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["checklists"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
+      qc.invalidateQueries({ queryKey: ["usage-events"] });
     },
   });
 }

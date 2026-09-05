@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useUsageEvents, useCreateUsageEvent, useBulkCreateUsageEvents, useDeleteUsageEvent, useWakeUpAsset } from "@/hooks/useAssets";
+import { currencySymbol } from "@/lib/currency";
 import type { Asset } from "@/types/asset";
 
 const sourceLabels: Record<string, string> = { quick: "一键", backfill: "补录", checklist: "清单" };
@@ -28,7 +29,7 @@ function CostPerUse({ asset }: { asset: Asset }) {
       {count === 0 ? (
         <span className="rounded-md bg-phy08 px-1.5 py-0.5 font-medium text-wrn">从未二次消费</span>
       ) : (
-        <>单次使用成本 <span className="font-mono text-ink">¥{(Number(asset.purchase_price) / count).toLocaleString("zh-CN", { maximumFractionDigits: 2 })}</span>/次</>
+        <>单次使用成本 <span className="font-mono text-ink">{currencySymbol(asset.currency)}{(Number(asset.purchase_price) / count).toLocaleString("zh-CN", { maximumFractionDigits: 2 })}</span>/次</>
       )}
     </span>
   );
@@ -37,7 +38,7 @@ function CostPerUse({ asset }: { asset: Asset }) {
 // v0.6 使用日志：一次有意识的使用记一笔（二次消费数据层）
 export default function UsageLog({ asset }: { asset: Asset }) {
   const navigate = useNavigate();
-  const { data } = useUsageEvents(asset.id, 200);
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage } = useUsageEvents(asset.id, 200);
   const createEvent = useCreateUsageEvent(asset.id);
   const bulkCreate = useBulkCreateUsageEvents(asset.id);
   const deleteEvent = useDeleteUsageEvent(asset.id);
@@ -50,8 +51,8 @@ export default function UsageLog({ asset }: { asset: Asset }) {
   const [note, setNote] = useState("");
 
   const readOnly = asset.status === "disposed" || asset.status === "expired";
-  const events = data?.events ?? [];
-  const total = data?.total ?? 0;
+  const events = data?.pages.flatMap((page) => page.events) ?? [];
+  const total = data?.pages[0]?.total ?? 0;
   const pending = createEvent.isPending || bulkCreate.isPending;
 
   function resetForm() {
@@ -173,8 +174,15 @@ export default function UsageLog({ asset }: { asset: Asset }) {
                 </button>
               </div>
             ))}
-            {total > events.length && (
-              <div className="pt-2 text-xs text-muted-foreground">仅显示最近 {events.length} 条，共 {total} 条</div>
+            {hasNextPage && (
+              <button
+                onClick={() => fetchNextPage()}
+                disabled={isFetchingNextPage}
+                className="pt-2 text-xs text-phy hover:underline underline-offset-2 disabled:opacity-50"
+                data-testid="usage-load-more"
+              >
+                {isFetchingNextPage ? "加载中..." : `加载更多（已显示 ${events.length} / 共 ${total} 条）`}
+              </button>
             )}
           </div>
         )}
