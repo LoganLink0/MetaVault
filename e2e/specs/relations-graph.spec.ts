@@ -24,6 +24,28 @@ test.describe("关联领地（关联可视化图）", () => {
     }
   });
 
+  test("类型过滤：只看物理时数字节点与其相关边隐藏，全部恢复", async ({ page }) => {
+    await resetDb();
+    const camera = await createAsset({ name: "过滤相机", type: "physical", category: "physical.camera" });
+    const domain = await createAsset({ name: "过滤域名", type: "digital", category: "digital.domain" });
+    const lens = await createAsset({ name: "过滤镜头", type: "physical", category: "physical.other" });
+    await createRelation(camera.id, domain.id, "bound_to");
+    await createRelation(camera.id, lens.id, "related_to");
+
+    await page.goto("/relations");
+    await page.waitForLoadState("networkidle");
+    await expect(page.getByTestId("relation-node")).toHaveCount(3);
+    await expect(page.getByTestId("relation-edge")).toHaveCount(2);
+
+    await page.getByTestId("filter-physical").click();
+    await expect(page.getByTestId("relation-node")).toHaveCount(2);
+    await expect(page.getByTestId("relation-edge")).toHaveCount(1);
+
+    await page.getByTestId("filter-all").click();
+    await expect(page.getByTestId("relation-node")).toHaveCount(3);
+    await expect(page.getByTestId("relation-edge")).toHaveCount(2);
+  });
+
   test("点击节点跳转资产详情", async ({ page }) => {
     await resetDb();
     const asset = await createAsset({ name: "领地跳转机", type: "digital", category: "digital.course" });

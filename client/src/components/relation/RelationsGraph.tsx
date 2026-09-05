@@ -34,15 +34,23 @@ function truncate(name: string, max = 12): string {
   return name.length > max ? name.slice(0, max) + "…" : name;
 }
 
+const ALL_TYPES: AssetType[] = ["physical", "digital", "subscription"];
+
 function RelationsGraph() {
   const navigate = useNavigate();
   const { data: graph, isLoading } = useRelationGraph();
   const [highlightId, setHighlightId] = useState<string | null>(null);
+  // 类型过滤：空集合 = 显示全部；点已选 chip 再次切回全部
+  const [typeFilter, setTypeFilter] = useState<Set<AssetType>>(new Set());
 
-  const nodes = graph?.nodes ?? [];
-  const edges = graph?.edges ?? [];
+  const allNodes = graph?.nodes ?? [];
+  const allEdges = graph?.edges ?? [];
+  const visibleTypes = typeFilter.size > 0 ? typeFilter : new Set(ALL_TYPES);
+  const nodes = allNodes.filter((n) => visibleTypes.has(n.type));
+  const nodeIds = useMemo(() => new Set(nodes.map((n) => n.id)), [nodes]);
+  const edges = allEdges.filter((e) => nodeIds.has(e.source_id) && nodeIds.has(e.target_id));
 
-  // 节点等距排布在圆环上（服务端已按 type+name 排序，同类型相邻）
+  // 节点等距排布在圆环上（服务端已按 type+name 排序，同类型相邻；过滤后重新铺环）
   const positioned = useMemo(() => {
     const count = nodes.length;
     return nodes.map((node, i) => {
@@ -100,7 +108,7 @@ function RelationsGraph() {
         <h2 className="font-display text-xl font-bold tracking-[2px] uppercase">关联领地</h2>
       </div>
 
-      {nodes.length === 0 ? (
+      {allNodes.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground text-sm">
           暂无资产——先去<a className="text-phy underline underline-offset-2 mx-1" href="/assets/new">新建资产</a>，再在详情页建立关联。
         </div>
@@ -124,8 +132,25 @@ function RelationsGraph() {
               </span>
             ))}
             {orphanCount > 0 && (
-              <span className="text-ink3" data-testid="orphan-hint">{orphanCount} 件暂无关联</span>
+              <span className="text-ink3" data-testid="orphan-hint">当前筛选内 {orphanCount} 件暂无关联</span>
             )}
+            <span className="text-ink4">|</span>
+            <span className="flex items-center gap-1" data-testid="type-filter">
+              {(["all", ...ALL_TYPES] as const).map((t) => {
+                const isAll = t === "all";
+                const active = isAll ? typeFilter.size === 0 : typeFilter.has(t as AssetType);
+                return (
+                  <button
+                    key={t}
+                    onClick={() => setTypeFilter(isAll || typeFilter.has(t as AssetType) ? new Set() : new Set([t as AssetType]))}
+                    className={`px-1.5 py-0.5 rounded-md font-medium transition-colors ${active ? "bg-ink text-pg" : "text-ink2 hover:bg-[rgba(44,36,24,.04)]"}`}
+                    data-testid={`filter-${t}`}
+                  >
+                    {isAll ? "全部" : TYPE_LABELS[t as AssetType]}
+                  </button>
+                );
+              })}
+            </span>
           </div>
 
           {edges.length === 0 && (
@@ -134,6 +159,11 @@ function RelationsGraph() {
             </p>
           )}
 
+          {nodes.length === 0 && (
+            <p className="text-sm text-muted-foreground" data-testid="filter-empty-hint">
+              当前筛选类型下暂无资产——点「全部」或选择其他类型查看。
+            </p>
+          )}
           <div className="rounded-lg border-[1.5px] border-ink3 bg-pg overflow-hidden">
             <svg viewBox={`0 0 ${SIZE} ${SIZE}`} className="w-full h-auto select-none" data-testid="relation-svg">
               {/* 连线层 */}
