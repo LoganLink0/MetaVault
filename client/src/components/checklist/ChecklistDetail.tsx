@@ -112,7 +112,7 @@ function ChecklistDetail() {
           {scenarioLabels[checklist.scenario]}
         </Badge>
         <Badge variant="outline" className={
-          checklist.status === "completed" ? "bg-[#4a9e6e]/10 text-[#4a9e6e] border-[#4a9e6e]/30"
+          checklist.status === "completed" ? "bg-grn08 text-grn border-grn/30"
           : checklist.status === "archived" ? "bg-ink4/50 text-ink3 border-ink4"
           : "bg-sub08 text-sub border-sub/30"
         }>
@@ -163,12 +163,14 @@ function ChecklistDetail() {
           >
             <button
               onClick={() => handleToggle(item)}
-              className="shrink-0 disabled:opacity-40"
+              className="shrink-0 disabled:opacity-40 transition-transform active:scale-90"
               disabled={checklist?.kind === "wake_up" && checklist?.status !== "active"}
               data-testid="toggle-item"
+              aria-pressed={item.checked}
             >
+              {/* key 随勾选态切换：图标重挂载触发弹性入场，勾选有"落章"手感 */}
               {item.checked ? (
-                <CheckSquare className="h-4 w-4 text-phy" />
+                <CheckSquare key="on" className="pop-item h-4 w-4 text-phy" strokeWidth={2.2} />
               ) : (
                 <Square className="h-4 w-4 text-ink3" />
               )}

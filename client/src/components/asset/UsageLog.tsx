@@ -27,7 +27,7 @@ function CostPerUse({ asset }: { asset: Asset }) {
   return (
     <span className="text-xs text-muted-foreground whitespace-nowrap" data-testid="cost-per-use">
       {count === 0 ? (
-        <span className="rounded-md bg-phy08 px-1.5 py-0.5 font-medium text-wrn">从未二次消费</span>
+        <span className="rounded-md bg-phy08 px-1.5 py-0.5 font-medium text-wrn-strong">从未二次消费</span>
       ) : (
         <>单次使用成本 <span className="font-mono text-ink">{currencySymbol(asset.currency)}{(Number(asset.purchase_price) / count).toLocaleString("zh-CN", { maximumFractionDigits: 2 })}</span>/次</>
       )}

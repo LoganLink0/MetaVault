@@ -2,10 +2,10 @@
 
 @theme inline {
   /* Fonts */
-  --font-display: "Space Grotesk", sans-serif;
-  --font-body: "DM Sans", sans-serif;
-  --font-mono: "JetBrains Mono", monospace;
-  --font-serif: "Cinzel", serif;
+  --font-display: "Space Grotesk", "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei UI", "Noto Sans SC", sans-serif;
+  --font-body: "DM Sans", "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei UI", "Noto Sans SC", sans-serif;
+  --font-mono: "JetBrains Mono", "SFMono-Regular", Consolas, "PingFang SC", "Microsoft YaHei UI", monospace;
+  --font-serif: "Cinzel", "PingFang SC", serif;
 
   /* Type colors */
   --color-phy: #3B6B8A;
@@ -21,6 +21,13 @@
   --color-phy08: rgba(59, 107, 138, 0.08);
   --color-dig08: rgba(155, 142, 196, 0.08);
   --color-sub08: rgba(212, 168, 67, 0.08);
+
+  /* 文字安全档：同名色用作文字/图标时切换到此档（原色对比度不足 3:1） */
+  --color-dig-strong: #6B5F9E;
+  --color-sub-strong: #8D6810;
+  --color-wrn-strong: #C0392B;
+  --color-grn: #2E7351;
+  --color-grn08: rgba(46, 115, 81, 0.08);
 
   /* Semantic tokens mapped from shadcn variables */
   --color-background: var(--background);
@@ -104,11 +111,42 @@
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    font-variant-numeric: tabular-nums;
   }
+
+  ::selection {
+    background: rgba(59, 107, 138, 0.18);
+    color: var(--color-ink);
+  }
+
+  /* 键盘可达性：统一墨色焦点环，替代浏览器默认 */
+  :focus-visible {
+    outline: 2px solid var(--color-ink);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  /* 纸质档案感滚动条 */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-ink4);
+    border: 3px solid transparent;
+    border-radius: 8px;
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover { background-color: var(--color-ink3); }
 
   h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-display);
-    letter-spacing: 0.5px;
+    letter-spacing: 0.3px;
+  }
+
+  h2 {
+    font-size: clamp(1.125rem, 1.02rem + 0.5vw, 1.375rem);
   }
 
   /* Cartographic background texture */
@@ -156,4 +194,59 @@
 @keyframes warnGlow {
   0%, 100% { opacity: .6; }
   50% { opacity: 1; }
+}
+
+
+/* ===== 动效系统（v0.9.2 视觉工艺层）=====
+   节奏曲线统一用 ease-out 家族：入场 .22,1,.36,1（位移类）/ 弹性 .34,1.56,.64,1（缩放类）
+   所有时长 ≤ 600ms，交互动效 ≤ 200ms；prefers-reduced-motion 全局降级见底部 */
+
+@keyframes pageEnter {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.page-enter { animation: pageEnter 0.32s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+@keyframes riseIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+.rise-item { animation: riseIn 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+@keyframes popIn {
+  0% { opacity: 0; transform: scale(0.5); }
+  70% { opacity: 1; transform: scale(1.06); }
+  100% { opacity: 1; transform: scale(1); }
+}
+/* SVG 内使用：以自身包围盒中心为缩放原点（默认 0 0 会导致节点从画布角落飞入） */
+.pop-item { animation: popIn 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both; transform-box: fill-box; transform-origin: center; }
+
+@keyframes edgeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.edge-in { animation: edgeIn 0.6s ease-out both; }
+
+/* 骨架屏光泽扫过 */
+@keyframes shimmer {
+  from { background-position: -200% 0; }
+  to { background-position: 200% 0; }
+}
+.shimmer {
+  background: linear-gradient(100deg, #ece5db 40%, #f7f2ec 50%, #ece5db 60%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+
+/* 卡片悬停：轻抬升 + 暖色投影（点按回落） */
+.card-lift { transition: transform 0.18s ease, box-shadow 0.18s ease; }
+.card-lift:hover { transform: translateY(-2px); box-shadow: 0 10px 24px -12px rgba(44, 36, 24, 0.28); }
+.card-lift:active { transform: translateY(0); box-shadow: 0 4px 12px -8px rgba(44, 36, 24, 0.2); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

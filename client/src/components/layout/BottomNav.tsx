@@ -18,7 +18,7 @@ const tabs = [
 
 function BottomNav() {
   return (
-    <nav className="flex md:hidden items-center justify-around border-t border-ink3 bg-pg h-14 safe-b-pb">
+    <nav className="flex md:hidden items-center justify-around border-t border-ink3 bg-pg/95 backdrop-blur-md h-14 safe-b-pb">
       {tabs.map(({ to, label, icon: Icon }) => (
         <NavLink
           key={to}
@@ -26,13 +26,21 @@ function BottomNav() {
           end={to === "/"}
           className={({ isActive }) =>
             cn(
-              "flex flex-col items-center gap-0.5 text-xs transition-colors",
+              "flex flex-col items-center justify-center gap-0.5 text-xs min-w-[56px] transition-all active:scale-95",
               isActive ? "text-ink font-semibold" : "text-ink2"
             )
           }
         >
-          <Icon className="h-5 w-5" />
-          {label}
+          {({ isActive }) => (
+            <>
+              <Icon className="h-5 w-5" strokeWidth={isActive ? 2.2 : 1.8} />
+              {label}
+              {/* 活动指示点：制图学定位标 */}
+              <span
+                className={cn("h-1 w-1 rounded-full bg-ink transition-all duration-200", isActive ? "scale-100 opacity-100" : "scale-0 opacity-0")}
+              />
+            </>
+          )}
         </NavLink>
       ))}
     </nav>

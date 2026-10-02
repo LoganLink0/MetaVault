@@ -48,6 +48,16 @@
 
 `docs/design-exploration/` 保留 23 个设计稿供参考（01~23），`index.html` 为画廊索引页。
 
+### v0.9.2 视觉工艺层（Awwards 级打磨）
+
+- **文字安全色阶：** 三色原值对纸底对比度不足 3:1，凡用作文字/小图标一律切换 strong 档（`--color-dig-strong #6B5F9E / sub-strong #8D6810 / wrn-strong #C0392B / grn #2E7351`，均 ≥4.5:1）；原色仅用于色点/淡底/装饰
+- **字体栈：** 显式中日韩回退（PingFang SC → HarmonyOS Sans SC → Microsoft YaHei UI → Noto Sans SC）；全局 `tabular-nums` 等宽数字
+- **动效系统（index.css）：** `page-enter` 路由淡入上浮 320ms / `rise-item` 卡片交错入场 / `pop-item` SVG 节点弹性（transform-box: fill-box）/ `edge-in` 连线交错淡入 / `.shimmer` 骨架光泽 / `.card-lift` 悬停抬升；曲线统一 ease-out 家族，入场 ≤600ms、交互 ≤200ms，`prefers-reduced-motion` 全局降级
+- **全局工艺：** focus-visible 墨色焦点环、纸质滚动条、墨蓝选区、Header/底部导航毛玻璃、按钮点按 scale 0.98、勾选图标弹性落章 + aria-pressed、移动端底部导航活动指示点
+- **签名元素：** 关联领地中心罗盘（24 刻度环 + Cinzel 北标）与两圈虚线测绘环；仪表盘 Survey 眉题日期戳
+- **量化审计：** `e2e/polish.config.ts` + `e2e/polish/audit.spec.ts` 用计算样式断言工艺层真实生效（对比度/动画名/终值/焦点环/降级）；`baseline.spec.ts` 可重生成 `polish-shots/` 截图（已 gitignore）
+- **测试稳定性：** 共享 fixture 拦截 Google Fonts 请求（模块脚本等样式表，字体 CDN 抖动会挂起整页导航）
+
 ## 开发命令
 - `pnpm dev` — 同时启动前后端
 - `pnpm dev:client` — 仅前端（localhost:5174）

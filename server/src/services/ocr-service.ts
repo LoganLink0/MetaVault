@@ -16,6 +16,16 @@ interface OcrResult {
 const API_BASE = process.env.VISION_API_BASE || "https://open.bigmodel.cn/api/paas/v4";
 const MODEL = process.env.VISION_MODEL || "glm-5.3-flash";
 
+// 目标地址来自服务端环境变量（非请求输入），此处再做一次协议白名单归一，
+// 防止误配置指向内网/元数据端点等非预期目标
+function visionEndpoint(): string {
+  const url = new URL(`${API_BASE}/chat/completions`);
+  if (url.protocol !== "https:" && url.protocol !== "http:") {
+    throw new Error(`VISION_API_BASE 协议非法：${url.protocol}`);
+  }
+  return url.toString();
+}
+
 const PROMPT = `你是订阅信息抽取助手。从这张订阅/支付截图（中文 App 截图为主）中提取以下字段，严格输出 JSON，不要输出任何其他内容：
 {
   "service_name": string | null,
@@ -60,7 +70,7 @@ export async function recognizeSubscription(imagePath: string): Promise<OcrResul
 
   const base64 = readFileSync(imagePath).toString("base64");
 
-  const res = await fetch(`${API_BASE}/chat/completions`, {
+  const res = await fetch(visionEndpoint(), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

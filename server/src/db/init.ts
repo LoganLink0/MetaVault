@@ -18,9 +18,10 @@ function migrateNotificationsSchema(database: Database.Database): void {
   if (!table || table.sql.includes("checklist_due")) return;
 
   database.pragma("foreign_keys = OFF");
+  // 全部字面量 DDL，逐条 prepare 执行（项目规范：不用 exec 跑多语句串）
   const migration = database.transaction(() => {
-    database.exec(`
-      CREATE TABLE notifications_new (
+    const stmts = [
+      `CREATE TABLE notifications_new (
         id          TEXT PRIMARY KEY,
         asset_id    TEXT REFERENCES assets(id) ON DELETE CASCADE,
         checklist_id TEXT REFERENCES checklists(id) ON DELETE CASCADE,
@@ -30,16 +31,17 @@ function migrateNotificationsSchema(database: Database.Database): void {
         is_read     INTEGER DEFAULT 0,
         is_dismissed INTEGER DEFAULT 0,
         created_at  TEXT NOT NULL DEFAULT (datetime('now'))
-      );
-      INSERT INTO notifications_new (id, asset_id, type, message, trigger_date, is_read, is_dismissed, created_at)
-        SELECT id, asset_id, type, message, trigger_date, is_read, is_dismissed, created_at FROM notifications;
-      DROP TABLE notifications;
-      ALTER TABLE notifications_new RENAME TO notifications;
-      CREATE INDEX IF NOT EXISTS idx_notifications_asset ON notifications(asset_id);
-      CREATE INDEX IF NOT EXISTS idx_notifications_checklist ON notifications(checklist_id);
-      CREATE INDEX IF NOT EXISTS idx_notifications_trigger ON notifications(trigger_date);
-      CREATE INDEX IF NOT EXISTS idx_notifications_unread ON notifications(is_read, is_dismissed);
-    `);
+      )`,
+      `INSERT INTO notifications_new (id, asset_id, type, message, trigger_date, is_read, is_dismissed, created_at)
+        SELECT id, asset_id, type, message, trigger_date, is_read, is_dismissed, created_at FROM notifications`,
+      `DROP TABLE notifications`,
+      `ALTER TABLE notifications_new RENAME TO notifications`,
+      `CREATE INDEX IF NOT EXISTS idx_notifications_asset ON notifications(asset_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_notifications_checklist ON notifications(checklist_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_notifications_trigger ON notifications(trigger_date)`,
+      `CREATE INDEX IF NOT EXISTS idx_notifications_unread ON notifications(is_read, is_dismissed)`,
+    ];
+    for (const sql of stmts) database.prepare(sql).run();
   });
   migration();
   database.pragma("foreign_keys = ON");
@@ -50,7 +52,7 @@ function migrateNotificationsSchema(database: Database.Database): void {
 function migrateChecklistsKind(database: Database.Database): void {
   const columns = database.prepare("PRAGMA table_info(checklists)").all() as Array<{ name: string }>;
   if (columns.length === 0 || columns.some((c) => c.name === "kind")) return;
-  database.exec("ALTER TABLE checklists ADD COLUMN kind TEXT NOT NULL DEFAULT 'normal'");
+  database.prepare("ALTER TABLE checklists ADD COLUMN kind TEXT NOT NULL DEFAULT 'normal'").run();
 }
 
 export async function getDb(): Promise<Database.Database> {

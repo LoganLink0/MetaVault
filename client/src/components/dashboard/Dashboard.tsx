@@ -13,6 +13,7 @@ import { useWakeUpAsset } from "@/hooks/useAssets";
 import { useAssets } from "@/hooks/useAssets";
 import { useChecklists } from "@/hooks/useChecklists";
 import { Badge } from "@/components/ui/badge";
+import CountUp from "@/components/ui/count-up";
 import { scenarioLabels } from "@/types/checklist";
 import { scenarioColor } from "@/components/checklist/templates";
 import GanttTimeline from "./GanttTimeline";
@@ -22,6 +23,13 @@ const TYPE_COLORS: Record<string, string> = {
   physical: "var(--color-phy)",
   digital: "var(--color-dig)",
   subscription: "var(--color-sub)",
+};
+
+// 文字安全档：色值用作文字/小图标时切换（原色对纸底对比度不足，见 index.css 注释）
+const TYPE_TEXT_COLORS: Record<string, string> = {
+  physical: "var(--color-phy)",
+  digital: "var(--color-dig-strong)",
+  subscription: "var(--color-sub-strong)",
 };
 
 const TYPE_LABELS: Record<string, string> = {
@@ -115,7 +123,7 @@ function ReminderPanel() {
                     <span className="text-xs text-ink truncate">{item.name}</span>
                   </div>
                   {daysLeft !== null && (
-                    <span className="text-[10px] font-mono shrink-0" style={{ color: TYPE_COLORS[type] }}>{daysLeft}天</span>
+                    <span className="text-[10px] font-mono shrink-0" style={{ color: TYPE_TEXT_COLORS[type] }}>{daysLeft}天</span>
                   )}
                 </button>
               );
@@ -140,7 +148,7 @@ function ReminderPanel() {
                 <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: "var(--color-sub)" }} />
                 <span className="text-xs text-ink truncate">{item.name}</span>
               </div>
-              <span className="text-[10px] font-mono text-sub shrink-0">考虑取消</span>
+              <span className="text-[10px] font-mono text-sub-strong shrink-0">考虑取消</span>
             </button>
           ))}
         </div>
@@ -170,7 +178,7 @@ function ReminderPanel() {
 
       {!hasContent && (
         <div className="text-center py-4 flex-1 flex items-center justify-center">
-          <p className="text-xs text-ink3">暂无提醒或建议</p>
+          <p className="text-xs text-ink2">暂无提醒或建议</p>
         </div>
       )}
     </div>
@@ -215,7 +223,7 @@ function TypeDistribution() {
             >
               <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: TYPE_COLORS[s.type] }} />
               <span className="font-mono text-[11px] text-ink2">{TYPE_LABELS[s.type]}</span>
-              <span className="font-mono text-[11px] font-semibold" style={{ color: TYPE_COLORS[s.type] }}>{s.pct}%</span>
+              <span className="font-mono text-[11px] font-semibold" style={{ color: TYPE_TEXT_COLORS[s.type] }}>{s.pct}%</span>
             </button>
           ))}
         </div>
@@ -249,17 +257,17 @@ function MonthlyReviewPanel({ hasAssets }: { hasAssets: boolean }) {
   return (
     <div className="bg-pg border-[1.5px] border-ink3 rounded-lg px-4 py-3 flex flex-col md:flex-row md:items-center gap-3" data-testid="monthly-review">
       <div className="flex items-center gap-1 shrink-0">
-        <Sparkles className="h-3.5 w-3.5 text-sub" />
+        <Sparkles className="h-3.5 w-3.5 text-sub-strong" />
         <button className={navBtn} onClick={() => setMonth((m) => shiftMonth(m, -1))} data-testid="review-prev" title="上一月">←</button>
         <span className="text-xs text-ink2 whitespace-nowrap">{monthLabel}回顾</span>
         <button className={navBtn} disabled={isCurrent} onClick={() => setMonth((m) => shiftMonth(m, 1))} data-testid="review-next" title="下一月">→</button>
       </div>
       <div className="flex items-center gap-4 font-mono text-sm" data-testid="review-stats">
-        <span><span className="font-semibold text-sub">{review.total_uses}</span> <span className="text-[11px] text-ink2 font-sans">次二次消费</span></span>
+        <span><CountUp className="font-semibold text-sub-strong" value={review.total_uses} format={String} /> <span className="text-[11px] text-ink2 font-sans">次二次消费</span></span>
         <span className="text-ink4">|</span>
-        <span><span className="font-semibold text-ink">{review.used_asset_count}</span> <span className="text-[11px] text-ink2 font-sans">件资产在用</span></span>
+        <span><CountUp className="font-semibold text-ink" value={review.used_asset_count} format={String} /> <span className="text-[11px] text-ink2 font-sans">件资产在用</span></span>
         <span className="text-ink4">|</span>
-        <span><span className="font-semibold" style={{ color: "#4a9e6e" }}>{review.awakened_count}</span> <span className="text-[11px] text-ink2 font-sans">件被唤醒</span></span>
+        <span><CountUp className="font-semibold text-grn" value={review.awakened_count} format={String} /> <span className="text-[11px] text-ink2 font-sans">件被唤醒</span></span>
       </div>
       {review.top_assets.length > 0 && (
         <div className="flex items-center gap-2 md:ml-auto min-w-0">
@@ -308,13 +316,13 @@ function SecondConsumptionPanel() {
         onClick={() => navigate("/assets?sort=cpu")}
         data-testid="sc-rate"
       >
-        <span className="font-mono text-2xl font-semibold" style={{ color: "var(--color-sub)" }}>{sc.rate}%</span>
+        <CountUp className="font-mono text-2xl font-semibold text-sub-strong" value={sc.rate} format={(n) => `${n}%`} />
         <span className="text-[10px] text-ink2 text-center leading-tight">近 {sc.window_days} 天二次消费率<br />{sc.consumed}/{sc.total} 件资产</span>
       </button>
       {/* 吃灰榜 */}
       <div className="min-w-0">
         <div className="flex items-center gap-1.5 text-xs text-ink2 mb-1.5">
-          <Zap className="h-3 w-3 text-sub" />
+          <Zap className="h-3 w-3 text-sub-strong" />
           <span>吃灰榜 · 最久未用</span>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4">
@@ -331,7 +339,7 @@ function SecondConsumptionPanel() {
                 <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: TYPE_COLORS[item.type] }} />
                 <span className="text-xs text-ink truncate">{item.name}</span>
               </button>
-              <span className="text-[10px] font-mono shrink-0" style={{ color: item.never_used ? "var(--color-wrn)" : "var(--color-ink3)" }}>
+              <span className="text-[10px] font-mono shrink-0" style={{ color: item.never_used ? "var(--color-wrn-strong)" : "var(--color-ink2)" }}>
                 {item.never_used ? "从未使用" : `${item.days_since} 天未用`}
               </span>
               <button
@@ -374,7 +382,7 @@ function MonthlyExpirySummary({ events }: { events: { date: string; type: string
       {(["physical", "digital", "subscription"] as const).map(type => (
         <span key={type} className="flex items-center gap-1">
           <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: TYPE_COLORS[type] }} />
-          <span className="font-mono font-semibold" style={{ color: TYPE_COLORS[type] }}>{counts[type]}</span>
+          <span className="font-mono font-semibold" style={{ color: TYPE_TEXT_COLORS[type] }}>{counts[type]}</span>
         </span>
       ))}
     </div>
@@ -443,13 +451,14 @@ function Dashboard() {
 
   const activeCount = (overview?.byStatus ?? []).find((item: any) => item.status === "active")?.count ?? 0;
 
+  // 数值化统计（CountUp 用）；文字色一律走安全档
   const stats = [
-    { label: "资产总数", value: String(overview?.totalAssets ?? 0), color: "var(--color-phy)", href: "/assets" },
-    { label: "资产总值", value: `¥${((overview?.totalValue ?? 0) as number).toLocaleString()}`, color: "var(--color-dig)", href: "/assets" },
-    { label: "即将到期", value: String(health?.expiringAssets ?? 0), color: "var(--color-wrn)", href: "/notifications" },
-    { label: "供应商", value: String(overview?.totalSuppliers ?? 0), color: "var(--color-sub)", href: "/suppliers" },
-    { label: "使用中", value: String(activeCount), color: "#4a9e6e", href: "/assets?status=active" },
-    { label: "订阅月费", value: `¥${(subscription?.monthlyTotal ?? 0).toLocaleString()}`, color: "var(--color-sub)", href: "/assets?type=subscription" },
+    { label: "资产总数", value: overview?.totalAssets ?? 0, color: "var(--color-phy)", href: "/assets", format: String },
+    { label: "资产总值", value: (overview?.totalValue ?? 0) as number, color: "var(--color-dig-strong)", href: "/assets", format: (n: number) => `¥${n.toLocaleString()}` },
+    { label: "即将到期", value: health?.expiringAssets ?? 0, color: "var(--color-wrn-strong)", href: "/notifications", format: String },
+    { label: "供应商", value: overview?.totalSuppliers ?? 0, color: "var(--color-sub-strong)", href: "/suppliers", format: String },
+    { label: "使用中", value: activeCount, color: "var(--color-grn)", href: "/assets?status=active", format: String },
+    { label: "订阅月费", value: subscription?.monthlyTotal ?? 0, color: "var(--color-sub-strong)", href: "/assets?type=subscription", format: (n: number) => `¥${n.toLocaleString()}` },
   ];
 
   const calendarEvents = (health?.expiringDetails ?? []).map((d: any) => {
@@ -460,19 +469,24 @@ function Dashboard() {
 
   return (
     <div className="space-y-5">
-      <h2 className="font-display text-xl font-bold tracking-[2px] uppercase">仪表盘</h2>
+      <div className="flex items-end justify-between gap-4">
+        <h2 className="font-display text-xl font-bold tracking-[2px] uppercase">仪表盘</h2>
+        {/* 制图学眉题：测绘编号式日期戳 */}
+        <span className="font-mono text-[9px] tracking-[3px] text-ink2 uppercase" data-testid="survey-eyebrow">
+          Survey · {new Date().toISOString().slice(0, 10).replace(/-/g, ".")}
+        </span>
+      </div>
 
-      {/* Stats strip — 6-cell grid */}
+      {/* Stats strip — 6-cell grid，交错入场 */}
       <div className="grid grid-cols-3 md:grid-cols-6 gap-px bg-ink4 rounded-[10px] overflow-hidden border border-ink3">
-        {stats.map((s) => (
+        {stats.map((s, i) => (
           <button
             key={s.label}
             onClick={() => navigate(s.href)}
-            className="flex flex-col items-center justify-center bg-pg py-3.5 px-2 hover:bg-[rgba(44,36,24,0.04)] transition-colors"
+            className="rise-item flex flex-col items-center justify-center bg-pg py-3.5 px-2 hover:bg-[rgba(44,36,24,0.04)] transition-colors"
+            style={{ animationDelay: `${i * 50}ms` }}
           >
-            <span className="font-mono text-xl font-semibold" style={{ color: s.color }}>
-              {s.value}
-            </span>
+            <CountUp className="font-mono text-xl font-semibold" value={s.value} format={s.format} color={s.color} />
             <span className="text-[10px] text-ink2 mt-1 tracking-wide">{s.label}</span>
           </button>
         ))}

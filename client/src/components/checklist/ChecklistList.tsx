@@ -95,7 +95,7 @@ function ChecklistList() {
                       {scenarioLabels[cl.scenario]}
                     </Badge>
                     <Badge variant="outline" className={
-                      cl.status === "completed" ? "bg-[#4a9e6e]/10 text-[#4a9e6e] border-[#4a9e6e]/30"
+                      cl.status === "completed" ? "bg-grn08 text-grn border-grn/30"
                       : cl.status === "archived" ? "bg-ink4/50 text-ink3 border-ink4"
                       : "bg-sub08 text-sub border-sub/30"
                     }>

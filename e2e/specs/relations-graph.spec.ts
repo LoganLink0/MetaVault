@@ -17,8 +17,8 @@ test.describe("关联领地（关联可视化图）", () => {
     await expect(page.getByTestId("relation-node")).toHaveCount(4);
     await expect(page.getByTestId("relation-edge")).toHaveCount(2);
     await expect(page.getByTestId("orphan-hint")).toContainText("1 件暂无关联");
-    // N≤24：全部节点带标签
-    await expect(page.locator('[data-testid="relation-svg"] text')).toHaveCount(4);
+    // N≤24：全部节点带标签（罗盘 N 字母不属节点标签，用专属 testid 计数）
+    await expect(page.getByTestId("relation-label")).toHaveCount(4);
     // 图例四种关系（在图例容器内断言，避免宽松定位假阳性）
     const legend = page.getByTestId("graph-legend");
     for (const label of ["依赖", "包含", "绑定", "相关"]) {
@@ -62,12 +62,12 @@ test.describe("关联领地（关联可视化图）", () => {
     await page.waitForLoadState("networkidle");
     await expect(page.getByTestId("relation-node")).toHaveCount(26);
     // 26 节点超过阈值：只有 2 个有连接的节点带标签
-    await expect(page.locator('[data-testid="relation-svg"] text')).toHaveCount(2);
+    await expect(page.getByTestId("relation-label")).toHaveCount(2);
 
     // hover 一个孤儿节点：其标签出现（截断至 6 字符）
     await page.locator(`[data-node-id="${orphans[0].id}"]`).getByTestId("relation-node-dot").hover();
-    await expect(page.locator('[data-testid="relation-svg"] text')).toHaveCount(3);
-    await expect(page.locator('[data-testid="relation-svg"] text').filter({ hasText: "缓解孤儿0" })).toHaveCount(1);
+    await expect(page.getByTestId("relation-label")).toHaveCount(3);
+    await expect(page.getByTestId("relation-label").filter({ hasText: "缓解孤儿0" })).toHaveCount(1);
   });
 
   test("点击节点跳转资产详情", async ({ page }) => {

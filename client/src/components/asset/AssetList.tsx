@@ -39,9 +39,9 @@ const typeColorMap: Record<AssetType, string> = {
 };
 
 const statusBadgeStyles: Record<AssetStatus, string> = {
-  active: "bg-[#4a9e6e]/10 text-[#4a9e6e]",
-  idle: "bg-sub08 text-sub",
-  expired: "bg-phy08 text-wrn",
+  active: "bg-grn08 text-grn",
+  idle: "bg-sub08 text-sub-strong",
+  expired: "bg-phy08 text-wrn-strong",
   disposed: "bg-ink4/50 text-ink2",
 };
 
@@ -297,7 +297,7 @@ function AssetList() {
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {[1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-32 rounded-lg" />
+            <Skeleton key={i} className="shimmer h-32 rounded-lg" />
           ))}
         </div>
       ) : !assets?.length ? (
@@ -306,10 +306,11 @@ function AssetList() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {assets.map((asset) => (
+          {assets.map((asset, i) => (
             <Card
               key={asset.id}
-              className={`cursor-pointer transition-shadow hover:shadow-md ${selected.has(asset.id) ? "ring-2 ring-ink" : ""}`}
+              className={`rise-item card-lift cursor-pointer ${selected.has(asset.id) ? "ring-2 ring-ink" : ""}`}
+              style={{ animationDelay: `${Math.min(i, 12) * 40}ms` }}
               onClick={() => {
                 if (selectMode) {
                   toggleSelect(asset.id);
@@ -366,7 +367,7 @@ function AssetList() {
       {!selectMode && (
         <button
           onClick={() => navigate("/assets/new")}
-          className="fixed bottom-20 right-4 md:hidden h-12 w-12 rounded-full bg-ink text-pg shadow-lg flex items-center justify-center"
+          className="fixed bottom-20 right-4 md:hidden h-12 w-12 rounded-full bg-ink text-pg shadow-lg flex items-center justify-center transition-transform active:scale-90"
         >
           <Plus className="h-6 w-6" />
         </button>

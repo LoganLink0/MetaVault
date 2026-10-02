@@ -129,7 +129,7 @@ function Header() {
   }
 
   return (
-    <header className="nav-dashed-border sticky top-0 z-50 flex h-[54px] items-center justify-between border-b border-ink3 bg-pg px-6 gap-2">
+    <header className="nav-dashed-border sticky top-0 z-50 flex h-[54px] items-center justify-between border-b border-ink4/70 bg-pg/85 px-4 md:px-6 gap-2 backdrop-blur-md">
       <div className="flex items-center gap-1">
         {/* 通知铃铛 */}
         <div ref={notifRef} className="relative">

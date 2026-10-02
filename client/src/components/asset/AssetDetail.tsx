@@ -28,9 +28,9 @@ const typeBadgeVariant: Record<AssetType, "physical" | "digital" | "subscription
 };
 
 const statusBadgeStyles: Record<AssetStatus, string> = {
-  active: "bg-[#4a9e6e]/10 text-[#4a9e6e]",
-  idle: "bg-sub08 text-sub",
-  expired: "bg-phy08 text-wrn",
+  active: "bg-grn08 text-grn",
+  idle: "bg-sub08 text-sub-strong",
+  expired: "bg-phy08 text-wrn-strong",
   disposed: "bg-ink4/50 text-ink2",
 };
 

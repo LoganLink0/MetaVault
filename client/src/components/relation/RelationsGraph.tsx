@@ -70,6 +70,7 @@ function RelationsGraph() {
 
   const connectedIds = useMemo(() => new Set(edges.flatMap((e) => [e.source_id, e.target_id])), [edges]);
   const orphanCount = nodes.filter((n) => !connectedIds.has(n.id)).length;
+  const nodeById = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
 
   const edgePaths = useMemo(() => {
     const posById = new Map(positioned.map((p) => [p.node.id, p]));
@@ -141,7 +142,7 @@ function RelationsGraph() {
               </span>
             ))}
             {orphanCount > 0 && (
-              <span className="text-ink3" data-testid="orphan-hint">当前筛选内 {orphanCount} 件暂无关联</span>
+              <span className="text-ink2" data-testid="orphan-hint">当前筛选内 {orphanCount} 件暂无关联</span>
             )}
             <span className="text-ink4">|</span>
             <span className="flex items-center gap-1" data-testid="type-filter">
@@ -175,21 +176,50 @@ function RelationsGraph() {
           )}
           <div className="rounded-lg border-[1.5px] border-ink3 bg-pg overflow-hidden">
             <svg viewBox={`0 0 ${SIZE} ${SIZE}`} className="w-full h-auto select-none" data-testid="relation-svg">
-              {/* 连线层 */}
-              {edgePaths.map(({ edge, d, active }) => {
+              {/* 测绘装饰层：同心测量环 + 罗盘（制图学签名元素，不可交互） */}
+              <g pointerEvents="none" opacity="0.45" aria-hidden="true">
+                <circle cx={CENTER} cy={CENTER} r={RADIUS * 0.42} fill="none" stroke="var(--color-ink3)" strokeWidth="0.75" strokeDasharray="2 7" />
+                <circle cx={CENTER} cy={CENTER} r={RADIUS * 0.72} fill="none" stroke="var(--color-ink3)" strokeWidth="0.75" strokeDasharray="2 7" />
+                <circle cx={CENTER} cy={CENTER} r={46} fill="none" stroke="var(--color-ink3)" strokeWidth="0.9" />
+                {Array.from({ length: 24 }, (_, i) => {
+                  const a = (i / 24) * Math.PI * 2;
+                  const cardinal = i % 6 === 0;
+                  const r1 = cardinal ? 38 : 42;
+                  return (
+                    <line
+                      key={i}
+                      x1={CENTER + r1 * Math.cos(a)} y1={CENTER + r1 * Math.sin(a)}
+                      x2={CENTER + 46 * Math.cos(a)} y2={CENTER + 46 * Math.sin(a)}
+                      stroke="var(--color-ink3)" strokeWidth={cardinal ? 1.1 : 0.6}
+                    />
+                  );
+                })}
+                <line x1={CENTER} y1={CENTER - 34} x2={CENTER} y2={CENTER + 34} stroke="var(--color-ink3)" strokeWidth="0.7" />
+                <line x1={CENTER - 34} y1={CENTER} x2={CENTER + 34} y2={CENTER} stroke="var(--color-ink3)" strokeWidth="0.7" />
+                <circle cx={CENTER} cy={CENTER} r={2.4} fill="var(--color-ink2)" />
+                <text x={CENTER} y={CENTER - 56} textAnchor="middle" fontSize={11} fill="var(--color-ink2)" fontFamily="'Cinzel', serif" fontWeight={700}>N</text>
+              </g>
+              {/* 连线层：包裹层承载入场动画（path 自身的 active 透明度不受动画 fill-mode 干扰） */}
+              {edgePaths.map(({ edge, d, active }, i) => {
                 const style = RELATION_STYLES[edge.relation] ?? RELATION_STYLES.related_to;
+                const sourceName = nodeById.get(edge.source_id)?.name ?? "?";
+                const targetName = nodeById.get(edge.target_id)?.name ?? "?";
                 return (
-                  <path
-                    key={edge.id}
-                    d={d}
-                    fill="none"
-                    stroke={style.color}
-                    strokeWidth={active ? 2 : 1.2}
-                    strokeDasharray={style.dash}
-                    opacity={active ? 0.9 : 0.12}
-                    data-testid="relation-edge"
-                    data-relation={edge.relation}
-                  />
+                  <g key={edge.id} className="edge-in" style={{ animationDelay: `${i * 24}ms` }}>
+                    <path
+                      d={d}
+                      fill="none"
+                      stroke={style.color}
+                      strokeWidth={active ? 2 : 1.2}
+                      strokeDasharray={style.dash}
+                      opacity={active ? 0.9 : 0.12}
+                      className="transition-[stroke-width,opacity] duration-150"
+                      data-testid="relation-edge"
+                      data-relation={edge.relation}
+                    >
+                      <title>{`${sourceName} ${style.label} ${targetName}`}</title>
+                    </path>
+                  </g>
                 );
               })}
               {/* 节点与标签层 */}
@@ -215,12 +245,15 @@ function RelationsGraph() {
                     data-testid="relation-node"
                     data-node-id={node.id}
                   >
+                    {/* 内层承载弹性入场（外层 opacity 属于 hover 状态，不与动画互相覆盖） */}
+                    <g className="pop-item" style={{ animationDelay: `${Math.min(i, 30) * 14}ms` }}>
                     {isActive && <circle cx={x} cy={y} r={14} fill="none" stroke={TYPE_COLORS[node.type]} strokeWidth={1} strokeDasharray="3 3" />}
                     {/* 透明命中区：节点圆点小，扩大可点击范围 */}
                     <circle cx={x} cy={y} r={22} fill="transparent" data-testid="relation-node-hit" />
                     <circle cx={x} cy={y} r={connected ? 7 : 4.5} fill={TYPE_COLORS[node.type]} fillOpacity={connected ? 1 : 0.45} data-testid="relation-node-dot" />
                     {showLabel && (
                       <text
+                        data-testid="relation-label"
                         x={lp.x}
                         y={lp.y}
                         textAnchor={anchor}
@@ -232,6 +265,7 @@ function RelationsGraph() {
                         {truncate(node.name, labelMaxChars(nodes.length))}
                       </text>
                     )}
+                    </g>
                   </g>
                 );
               })}
